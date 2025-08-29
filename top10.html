@@ -15,21 +15,26 @@
     height: var(--h);
     display: flex;
     align-items: center;
-    justify-content: space-evenly;      /* even spacing across full width */
+    justify-content: space-evenly;    /* even spacing across full width */
     white-space: nowrap;
     overflow: hidden;
     box-sizing: border-box;
     padding: 0 12px;
   }
   .item { display: inline-flex; gap: 8px; align-items: center; }
-  .rk   { opacity: .6; width: 1.6em; text-align: right; }
-  .team { letter-spacing: .2px; }
+  .rk   { opacity: .55; width: 1.6em; text-align: right; }
+  .team {
+    font-weight: 800;
+    letter-spacing: .2px;
+    color: var(--team, var(--fg));    /* falls back to fg if no mapped color */
+    text-shadow: 0 1px 0 rgba(0,0,0,.08); /* subtle readability boost */
+  }
 </style>
 
 <div class="wrap" id="bar">Loading…</div>
 
 <script>
-  // --- read query params ---
+  // --- Query params ---
   const q    = new URLSearchParams(location.search);
   const poll = (q.get('poll') || 'ap').toLowerCase();    // 'ap' or 'coaches'
   const n    = Math.max(1, Math.min(25, +(q.get('n') || 10)));
@@ -37,23 +42,58 @@
   const bg   = '#' + (q.get('bg') || 'f5f7fa');
   const fg   = '#' + (q.get('fg') || '000000');
 
-  // apply styles from query
   document.documentElement.style.setProperty('--h',  h + 'px');
   document.documentElement.style.setProperty('--bg', bg);
   document.documentElement.style.setProperty('--fg', fg);
 
+  // --- Team color map (primary brand colors) ---
+  const COLOR = (() => {
+    const m = new Map();
+    // SEC / ACC / B1G usual suspects
+    m.set('texas',        '#BF5700');
+    m.set('pennstate',    '#041E42');
+    m.set('ohiostate',    '#BB0000');
+    m.set('clemson',      '#F56600');
+    m.set('georgia',      '#BA0C2F');
+    m.set('notredame',    '#0C2340');
+    m.set('oregon',       '#154733');
+    m.set('alabama',      '#9E1B32');
+    m.set('lsu',          '#461D7C');
+    m.set('miami',        '#F47321');
+
+    // Helpful extras you might see in Top 25
+    m.set('michigan',     '#00274C');
+    m.set('washington',   '#4B2E83');
+    m.set('floridastate', '#782F40');
+    m.set('oklahoma',     '#841617');
+    m.set('texasam',      '#500000');
+    m.set('kansasstate',  '#512888');
+    m.set('usc',          '#990000');
+    m.set('utah',         '#CC0000');
+    m.set('wisconsin',    '#C5050C');
+    m.set('tennessee',    '#FF8200');
+    m.set('olemiss',      '#CE1126');
+    m.set('missouri',     '#F1B82D');
+    m.set('auburn',       '#0C2340');
+    m.set('tcu',          '#4D1979');
+    m.set('colorado',     '#CFB87C');
+    m.set('northcarolina','#7BAFD4');
+    return m;
+  })();
+
+  const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
   (async () => {
     const bar = document.getElementById('bar');
     try {
-      // 1) ask our API for the latest blob URLs
+      // 1) Get latest blob URLs
       const r1 = await fetch('/api/update', { cache: 'no-store' });
       if (!r1.ok) throw new Error('update failed ' + r1.status);
       const j = await r1.json();
-      if (!j.ok) throw new Error('update returned not ok');
+      if (!j.ok) throw new Error('update not ok');
 
+      // 2) Fetch rankings JSON
       const url = poll === 'coaches' ? j.coachesUrl : j.apUrl;
-
-      // 2) fetch the actual rankings JSON from the blob
       const r2 = await fetch(url, { cache: 'no-store' });
       if (!r2.ok) throw new Error('blob fetch failed ' + r2.status);
       const data = await r2.json();
@@ -61,17 +101,24 @@
       const teams = (data?.teams || []).slice(0, n);
       if (!teams.length) throw new Error('no teams in data');
 
-      // 3) render top N evenly across
+      // 3) Render evenly across
       bar.textContent = '';
       teams.forEach((t, i) => {
         const el = document.createElement('span');
         el.className = 'item';
-        el.innerHTML = `<span class="rk">${i+1}.</span><span class="team">${t.team}</span>`;
+        const teamName = t.team || t.name || '';
+        const key = norm(teamName);
+        const color = COLOR.get(key);
+
+        el.innerHTML = `
+          <span class="rk">${i + 1}.</span>
+          <span class="team" style="${color ? `--team:${color}` : ''}">${teamName}</span>
+        `;
         bar.appendChild(el);
       });
     } catch (err) {
       console.error(err);
-      document.getElementById('bar').textContent = 'Unable to load rankings.';
+      bar.textContent = 'Unable to load rankings.';
     }
   })();
 </script>
