@@ -15,55 +15,63 @@
     height: var(--h);
     display: flex;
     align-items: center;
-    justify-content: space-evenly; /* even spacing across full width */
+    justify-content: space-evenly;      /* even spacing across full width */
     white-space: nowrap;
     overflow: hidden;
     box-sizing: border-box;
     padding: 0 12px;
   }
   .item { display: inline-flex; gap: 8px; align-items: center; }
-  .rk { opacity: .6; width: 1.6em; text-align: right; }
+  .rk   { opacity: .6; width: 1.6em; text-align: right; }
   .team { letter-spacing: .2px; }
 </style>
+
 <div class="wrap" id="bar">Loading…</div>
+
 <script>
   // --- read query params ---
-  const q = new URLSearchParams(location.search);
-  const poll = (q.get('poll') || 'ap').toLowerCase();     // 'ap' or 'coaches'
-  const n = Math.max(1, Math.min(25, +(q.get('n') || 10)));
-  const h = +(q.get('h') || 44);
-  const bg = '#' + (q.get('bg') || 'f5f7fa');
-  const fg = '#' + (q.get('fg') || '000000');
+  const q    = new URLSearchParams(location.search);
+  const poll = (q.get('poll') || 'ap').toLowerCase();    // 'ap' or 'coaches'
+  const n    = Math.max(1, Math.min(25, +(q.get('n') || 10)));
+  const h    = +(q.get('h') || 44);
+  const bg   = '#' + (q.get('bg') || 'f5f7fa');
+  const fg   = '#' + (q.get('fg') || '000000');
 
   // apply styles from query
-  document.documentElement.style.setProperty('--h', h + 'px');
+  document.documentElement.style.setProperty('--h',  h + 'px');
   document.documentElement.style.setProperty('--bg', bg);
   document.documentElement.style.setProperty('--fg', fg);
-
-  // choose source
-  const file = poll === 'coaches' ? 'tcd-coaches.json' : 'tcd-ap.json';
 
   (async () => {
     const bar = document.getElementById('bar');
     try {
-      const res = await fetch(`/${file}`, { cache: 'no-store' });
-      if (!res.ok) throw new Error('Fetch failed ' + res.status);
-      const data = await res.json();
+      // 1) ask our API for the latest blob URLs
+      const r1 = await fetch('/api/update', { cache: 'no-store' });
+      if (!r1.ok) throw new Error('update failed ' + r1.status);
+      const j = await r1.json();
+      if (!j.ok) throw new Error('update returned not ok');
+
+      const url = poll === 'coaches' ? j.coachesUrl : j.apUrl;
+
+      // 2) fetch the actual rankings JSON from the blob
+      const r2 = await fetch(url, { cache: 'no-store' });
+      if (!r2.ok) throw new Error('blob fetch failed ' + r2.status);
+      const data = await r2.json();
 
       const teams = (data?.teams || []).slice(0, n);
-      if (!teams.length) throw new Error('No teams found');
+      if (!teams.length) throw new Error('no teams in data');
 
+      // 3) render top N evenly across
       bar.textContent = '';
-      for (let i = 0; i < teams.length; i++) {
-        const t = teams[i];
+      teams.forEach((t, i) => {
         const el = document.createElement('span');
         el.className = 'item';
         el.innerHTML = `<span class="rk">${i+1}.</span><span class="team">${t.team}</span>`;
         bar.appendChild(el);
-      }
-    } catch (e) {
-      bar.textContent = 'Unable to load rankings.';
-      console.error(e);
+      });
+    } catch (err) {
+      console.error(err);
+      document.getElementById('bar').textContent = 'Unable to load rankings.';
     }
   })();
 </script>
