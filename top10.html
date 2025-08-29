@@ -1,110 +1,166 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TCD Top 10</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Top 10</title>
 <style>
   :root{
-    --bg:#f5f7fa;     /* page bg from ?bg */
-    --fg:#000000;     /* default text from ?fg */
-    --gap:26px;       /* space between teams */
-    --fs:16px;        /* computed from ?h */
-    --fw:800;
-    --font:var(--fw) var(--fs)/1.1 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    --bar-h:32px;
+    --bg:#f5f7fa;
+    --fg:#000;
   }
-
+  /* reset-ish */
   *{box-sizing:border-box}
-  html,body{margin:0;background:var(--bg);color:var(--fg);font:var(--font)}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--fg);
+    font:600 16px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  }
   .wrap{
-    display:flex;justify-content:center;align-items:center;
-    gap:var(--gap);white-space:nowrap;padding:6px 8px;
+    height:var(--bar-h);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:0 8px;
+    overflow:hidden;
+    white-space:nowrap;
   }
-  .item{display:flex;align-items:baseline;gap:8px}
-  .idx{opacity:.65;font-weight:700}
-  .team{font-weight:800;letter-spacing:.2px}
+  ol{
+    display:flex;
+    gap:20px;            /* space between teams */
+    list-style:none;
+    padding:0;
+    margin:0;
+    width:100%;
+    justify-content:space-between;
+  }
+  li{display:flex;gap:.35em;align-items:baseline}
+  .rk{opacity:.85}
+  .team{font-weight:700}
 
-  /* Team colors (tweak anytime) */
-  .team[data-team="Texas"]{color:#bf5700}
-  .team[data-team="Penn State"]{color:#041e42}
-  .team[data-team="Ohio State"]{color:#bb0000}
-  .team[data-team="Clemson"]{color:#f56600}
-  .team[data-team="Georgia"]{color:#ba0c2f}
-  .team[data-team="Notre Dame"]{color:#0c2340}
-  .team[data-team="Oregon"]{color:#154733}
-  .team[data-team="Alabama"]{color:#9e1b32}
-  .team[data-team="Miami"]{color:#005030}
+  /* font size derived from height */
+  .wrap{font-size:clamp(12px, calc((var(--bar-h) - 10px)), 22px)}
+  .rk{font-size:.95em}
 
-  /* Special: LSU gold fill with purple outline, slight letter spacing */
-  .team[data-team="LSU"]{
-    color:#f1b82d;                          /* gold fill */
-    -webkit-text-stroke:1.25px #461d7c;     /* purple stroke */
-    text-shadow:0 0 0 #461d7c;              /* fallback outline */
-    letter-spacing:.6px;                    /* “smidge” */
+  /* LSU special: gold text with purple outline per letter */
+  li[data-team="LSU"] .team{
+    color:#FDBB30; /* gold */
+    -webkit-text-stroke:1px #461D7C;
+    text-shadow:
+      0 1px 0 #461D7C, 0 -1px 0 #461D7C,
+      1px 0 0 #461D7C, -1px 0 0 #461D7C;
+    letter-spacing:.03em;
   }
 
-  /* Optional: keep rank number neutral/dark */
-  .idx[data-team="LSU"]{color:#222}
+  /* small status line for debug */
+  #status{position:absolute;left:-9999px}
+  .debug #status{
+    position:static;
+    padding:6px 8px;
+    font:12px/1.2 ui-monospace,Menlo,Consolas,monospace;
+    color:#b00;
+  }
 </style>
 </head>
 <body>
-  <div id="app" class="wrap" role="list" aria-live="polite"></div>
+<div id="status" aria-live="polite"></div>
+<div class="wrap"><ol id="list"><li><span class="rk">1.</span> <span class="team">Placeholder</span></li></ol></div>
 
-  <script>
-    const Q = new URLSearchParams(location.search);
+<script>
+(function(){
+  const qs = new URLSearchParams(location.search);
 
-    // Params
-    const POLL = (Q.get('poll') || 'ap').toLowerCase();  // ap | coaches
-    const N    = Math.max(1, Math.min(25, +(Q.get('n') || 10)));
-    const BG   = Q.get('bg'); if (BG) document.documentElement.style.setProperty('--bg', '#'+BG.replace(/^#/,''));
-    const FG   = Q.get('fg'); if (FG) document.documentElement.style.setProperty('--fg', '#'+FG.replace(/^#/,''));
-    const H    = Math.max(20, +(Q.get('h') || 32));      // pixels
+  // read appearance params
+  const h  = Number(qs.get('h') || 32);
+  const bg = '#' + (qs.get('bg') || 'f5f7fa').replace('#','');
+  const fg = '#' + (qs.get('fg') || '000000').replace('#','');
+  document.documentElement.style.setProperty('--bar-h', h + 'px');
+  document.documentElement.style.setProperty('--bg', bg);
+  document.documentElement.style.setProperty('--fg', fg);
 
-    // Font size from height for a consistent fit
-    const fs = Math.max(12, H - 16);
-    document.documentElement.style.setProperty('--fs', fs + 'px');
+  // which poll?
+  const poll = (qs.get('poll') || 'ap').toLowerCase();
+  const n = Math.max(1, Math.min(Number(qs.get('n') || 10), 25));
 
-    // Data sources
-    // By default we use the repo-root JSON (easy). If you prefer the blob URLs
-    // returned by /api/update, pass them in with ?apUrl=&coachesUrl=
-    const AP_URL_FALLBACK      = '/tcd-ap.json';
-    const COACHES_URL_FALLBACK = '/tcd-coaches.json';
+  // Optional overrides; otherwise default to same-origin JSON files.
+  const apUrlParam       = qs.get('apUrl');
+  const coachesUrlParam  = qs.get('coachesUrl');
 
-    const AP_URL       = Q.get('apUrl')       || AP_URL_FALLBACK;
-    const COACHES_URL  = Q.get('coachesUrl')  || COACHES_URL_FALLBACK;
-    const SRC          = (POLL === 'coaches') ? COACHES_URL : AP_URL;
+  const apDefault       = '/tcd-ap.json';
+  const coachesDefault  = '/tcd-coaches.json';
 
-    async function main(){
-      const root = document.getElementById('app');
-      try{
-        const r = await fetch(SRC, { cache: 'no-store' });
-        if(!r.ok) throw new Error('HTTP '+r.status);
-        const data = await r.json();
+  const dataUrl = poll === 'coaches'
+    ? (coachesUrlParam || coachesDefault)
+    : (apUrlParam || apDefault);
 
-        const teams = (data.teams || []).slice(0, N);
-        if(!teams.length) throw new Error('empty');
+  const listEl = document.getElementById('list');
+  const statusEl = document.getElementById('status');
+  const debug = qs.get('debug') === '1';
+  if (debug) document.body.classList.add('debug');
 
-        root.innerHTML = teams.map(({ rk, team }) => {
-          const safeTeam = (team || '').replace(/[<>&"]/g, s => ({
-            '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'
-          }[s]));
-          return `
-            <div class="item" role="listitem">
-              <span class="idx" data-team="${safeTeam}">${rk}.</span>
-              <span class="team" data-team="${safeTeam}">
-                ${safeTeam === 'LSU' ? 'L&nbsp;S&nbsp;U' : safeTeam}
-              </span>
-            </div>`;
-        }).join('');
-      } catch (err) {
-        console.error('top10 load error:', err);
-        document.body.innerHTML =
-          '<div style="padding:8px;text-align:center;font:600 14px/1 system-ui">Unable to load rankings.</div>';
+  // simple color map (optional). Add more teams as you like.
+  const colorMap = new Map([
+    ['Texas',      '#BF5700'],
+    ['Penn State', '#041E42'],
+    ['Ohio State', '#BB0000'],
+    ['Clemson',    '#F56600'],
+    ['Georgia',    '#BA0C2F'],
+    ['Notre Dame', '#0C2340'],
+    ['Oregon',     '#154733'],
+    ['Alabama',    '#9E1B32'],
+    ['Miami',      '#F47321'] // accent; base text stays black so it stays readable
+  ]);
+
+  function setStatus(txt){ statusEl.textContent = txt; }
+
+  function toAbs(u){
+    try { return new URL(u, location.origin).href; } catch { return u; }
+  }
+
+  async function load(){
+    try{
+      const href = toAbs(dataUrl);
+      setStatus('Loading: ' + href);
+      const r = await fetch(href, { cache:'no-store', mode:'cors' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const json = await r.json();
+
+      // Expect { teams: [{ rk, team, rec }] }
+      const teams = (json.teams || []).slice().sort((a,b)=>(a.rk??999)-(b.rk??999)).slice(0,n);
+
+      // Build the row
+      listEl.innerHTML = '';
+      for (const t of teams){
+        const li = document.createElement('li');
+        li.dataset.team = t.team;
+        const rk = document.createElement('span');
+        rk.className = 'rk'; rk.textContent = (t.rk ?? '') + '.';
+        const name = document.createElement('span');
+        name.className = 'team'; name.textContent = t.team;
+
+        // apply color if known (LSU handled by CSS special above)
+        const hex = colorMap.get(t.team);
+        if (hex && t.team !== 'LSU') name.style.color = hex;
+
+        li.append(rk, document.createTextNode(' '), name);
+        listEl.appendChild(li);
       }
+      if (!teams.length){
+        throw new Error('No teams in JSON');
+      }
+      setStatus('OK');
+    }catch(err){
+      listEl.innerHTML = '<li><span class="team">Unable to load rankings.</span></li>';
+      setStatus('Error: ' + (err && err.message ? err.message : String(err)));
     }
-    main();
-  </script>
+  }
+
+  load();
+})();
+</script>
 </body>
 </html>
-
 
