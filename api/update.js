@@ -1,91 +1,38 @@
-// api/update.js — Node runtime (not Edge)
-import { put } from '@vercel/blob';
+// api/update.js — Node runtime, writes color-enriched JSON to Vercel Blob
+import { put } from "@vercel/blob";
 
-export default async function handler(req, res) {
-  try {
-    if (req.method !== 'GET') {
-      return res.status(405).json({ ok: false, error: 'Method not allowed' });
-    }
+const CFBD_RANKINGS = "https://api.collegefootballdata.com/rankings";
+const CFBD_TEAMS_FBS = "https://api.collegefootballdata.com/teams/fbs";
 
-    const year = new Date().getFullYear();
-    const url = `https://api.collegefootballdata.com/rankings?year=${year}`;
+// ----- helpers -----
+const norm = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
-    const r = await fetch(url, {
-      headers: { Authorization: `Bearer ${process.env.CFBD_API_KEY}` },
-    });
+function buildJson(pollsArr, label, colorMap) {
+  if (!Array.isArray(pollsArr) || !pollsArr.length) return null;
 
-    if (!r.ok) {
-      const body = await r.text();
-      return res
-        .status(500)
-        .json({ ok: false, error: 'CFBD fetch failed', status: r.status, body });
-    }
+  // pick the latest poll object that matches the label ("AP" or "Coaches")
+  const latest = pollsArr.reduce((a, b) => (a.week || 0) > (b.week || 0) ? a : b);
+  const poll =
+    latest.polls?.find((p) =>
+      label === "AP" ? /AP/i.test(p.poll) : /Coach/i.test(p.poll)
+    ) || null;
 
-    const data = await r.json();
+  if (!poll) return null;
 
-    // Build two payloads (AP + Coaches)
-    const ap = buildJson(data, /^(AP|AP Top 25)$/i);
-    const coaches = buildJson(data, /(Coach|Coaches)/i);
-
-    // Upload to Blob with STABLE file names (no random suffix)
-    let apUrl = null;
-    let coachesUrl = null;
-
-    if (ap) {
-      const apPut = await put('tcd-ap.json', JSON.stringify(ap), {
-        access: 'public',
-        contentType: 'application/json',
-        addRandomSuffix: false, // <-- keep filename stable
-      });
-      apUrl = apPut.url;
-    }
-
-    if (coaches) {
-      const coachesPut = await put('tcd-coaches.json', JSON.stringify(coaches), {
-        access: 'public',
-        contentType: 'application/json',
-        addRandomSuffix: false, // <-- keep filename stable
-      });
-      coachesUrl = coachesPut.url;
-    }
-
-    return res.status(200).json({ ok: true, apUrl, coachesUrl });
-  } catch (err) {
-    return res.status(200).json({ ok: false, error: String(err) });
-  }
-}
-
-/**
- * Select latest season/week and extract a compact JSON for a poll.
- * @param {Array} arr - CFBD rankings array
- * @param {RegExp} pollLabel - regex to match poll label (e.g., AP / Coaches)
- * @returns {object|null}
- */
-function buildJson(arr, pollLabel) {
-  if (!Array.isArray(arr) || !arr.length) return null;
-
-  // pick the entry with the highest (season, week)
-  const latest = arr.reduce((a, b) => {
-    const aw = a.week ?? 0;
-    const bw = b.week ?? 0;
-    if (a.season !== b.season) return a.season > b.season ? a : b;
-    return aw >= bw ? a : b;
+  const teams = (poll.ranks || []).slice(0, 25).map((r) => {
+    const key = norm(r.school);
+    const color = colorMap.get(key) || null;
+    return {
+      rk: r.rank,
+      team: r.school,
+      rec: r.record || "",
+      conf: r.conference || "",
+      color, // <— NEW: hex like "#cc0000" (may be null if unknown)
+    };
   });
 
-  if (!latest || !latest.polls) return null;
-
-  const poll = latest.polls.find((p) => pollLabel.test(p.poll));
-  if (!poll || !poll.ranks) return null;
-
-  const teams = (poll.ranks || []).slice(0, 25).map((r) => ({
-    rk: r.rank,
-    team: r.school,
-    rec: r.record || '',
-    conf: r.conference || '',
-  }));
-
   return {
-    poll: poll.poll,
+    poll: label,
     season: latest.season,
     week: latest.week,
     lastUpdated: new Date().toISOString(),
@@ -93,3 +40,72 @@ function buildJson(arr, pollLabel) {
   };
 }
 
+export default async function handler(req, res) {
+  if (req.method !== "GET") {
+    return res.status(405).json({ ok: false, error: "Method not allowed" });
+  }
+
+  try {
+    const year = new Date().getFullYear();
+
+    // fetch rankings
+    const r = await fetch(`${CFBD_RANKINGS}?year=${year}`, {
+      headers: { Authorization: `Bearer ${process.env.CFBD_API_KEY}` },
+      cache: "no-store",
+    });
+    if (!r.ok) {
+      const body = await r.text();
+      return res
+        .status(500)
+        .json({ ok: false, error: "CFBD rankings fetch failed", status: r.status, body });
+    }
+    const rankings = await r.json();
+
+    // fetch team colors (FBS list)
+    const tr = await fetch(`${CFBD_TEAMS_FBS}?year=${year}`, {
+      headers: { Authorization: `Bearer ${process.env.CFBD_API_KEY}` },
+      cache: "no-store",
+    });
+    if (!tr.ok) {
+      const body = await tr.text();
+      return res
+        .status(500)
+        .json({ ok: false, error: "CFBD teams fetch failed", status: tr.status, body });
+    }
+    const teamsList = await tr.json();
+    const colorMap = new Map();
+    teamsList.forEach((t) => {
+      const key = norm(t.school);
+      // prefer primary color, fall back to alt
+      const color = t.color || t.alt_color || null;
+      if (key && color && !colorMap.has(key)) colorMap.set(key, color.startsWith("#") ? color : `#${color}`);
+    });
+
+    const apJson = buildJson(rankings, "AP", colorMap);
+    const coachesJson = buildJson(rankings, "Coaches", colorMap);
+    if (!apJson || !coachesJson)
+      return res.status(500).json({ ok: false, error: "Could not build poll JSON" });
+
+    // write to Blob Storage (public, stable filenames)
+    const [apPut, coachesPut] = await Promise.all([
+      put("tcd-ap.json", JSON.stringify(apJson), {
+        access: "public",
+        addRandomSuffix: false,
+        contentType: "application/json",
+      }),
+      put("tcd-coaches.json", JSON.stringify(coachesJson), {
+        access: "public",
+        addRandomSuffix: false,
+        contentType: "application/json",
+      }),
+    ]);
+
+    return res.json({
+      ok: true,
+      apUrl: apPut.url,
+      coachesUrl: coachesPut.url,
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+}
