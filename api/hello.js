@@ -1,2 +1,4 @@
-export const config = { runtime: 'edge' };
-export default () => new Response('ok');
+// api/hello.js
+export default function handler(req, res) {
+  res.status(200).json({ ok: true, message: 'Hello from /api/hello' });
+}
