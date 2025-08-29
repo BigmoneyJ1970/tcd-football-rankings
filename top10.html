@@ -1,138 +1,227 @@
-
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Top 10 (Embed)</title>
-  <style>
-    :root{
-      --bg:#f5f7fa;
-      --fg:#000;
-      --h:38px;
-    }
-    *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    .wrap{max-width:1400px;margin:0 auto;padding:6px 10px}
-    .bar{
-      display:flex;gap:12px;align-items:center;justify-content:space-between;
-      height:var(--h); line-height:var(--h); white-space:nowrap; overflow:hidden;
-      border-radius:6px;
-    }
-    .slot{
-      flex:1 1 0; display:flex; align-items:center; justify-content:center;
-      font-weight:700; font-size:14px;
-    }
-    .slot .num{opacity:.8;margin-right:.4em;font-variant-numeric:tabular-nums}
-    .team{display:inline-block}
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TCD Top 10</title>
+<style>
+  :root{
+    --h: 32px;              /* bar height (will be set from ?h=) */
+    --bg: #f5f7fa;          /* background (from ?bg=) */
+    --fg: #000000;          /* default text color (from ?fg=) */
+    --n: 10;                /* number of teams (from ?n=) */
+    --pad-x: 10px;          /* horizontal padding, scales with height */
+    --gap: 10px;            /* gap between items, scales with height */
+    --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  }
 
-    /* LSU special treatment: brighter purple + gold outline per letter + a smidge of spacing */
-    .team.lsu{
-      letter-spacing:.09em;
-      color:#4a22a8; /* brighter purple */
-      text-shadow:
-        -1px -1px 0 #FDD023,  0 -1px 0 #FDD023,  1px -1px 0 #FDD023,
-        -1px  0   0 #FDD023,                      1px  0   0 #FDD023,
-        -1px  1px 0 #FDD023,  0  1px 0 #FDD023,  1px  1px 0 #FDD023;
-    }
+  html,body{
+    margin:0;
+    padding:0;
+    background:transparent;  /* so the embed inherits host page */
+  }
 
-    /* Responsive font sizing driven by height */
-    @media (min-width:480px){ .slot{font-size:calc(var(--h) * .50)} }
-    @media (max-width:479.98px){ .slot{font-size:calc(var(--h) * .45)} }
-  </style>
+  .bar{
+    display:flex;
+    align-items:center;
+    height:var(--h);
+    background:var(--bg);
+    color:var(--fg);
+    font-family:var(--font);
+    border-radius:6px;
+    box-shadow:0 0 0 1px rgba(0,0,0,.05) inset;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns: repeat(var(--n), minmax(0,1fr));
+    align-items:center;
+    width:100%;
+    padding:0 var(--pad-x);
+    gap:var(--gap);
+  }
+
+  .item{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:.35rem;
+    white-space:nowrap;
+    line-height:1;
+    font-weight:700;
+    /* font-size set in JS based on --h */
+  }
+
+  .rk{
+    font-variant-numeric: tabular-nums;
+    opacity:.85;
+    margin-right:.125rem;
+  }
+
+  .team{ color:var(--fg); }
+
+  /* LSU special styling: gold fill, purple outline per letter, slight tracking */
+  .team[data-team="LSU"]{
+    color:#FFD700 !important;              /* gold letters */
+    -webkit-text-stroke:1.4px #461D7C;     /* purple outline (WebKit) */
+    text-shadow:                            /* outline fallback for others */
+      -0.5px -0.5px 0 #461D7C,
+       0.5px -0.5px 0 #461D7C,
+      -0.5px  0.5px 0 #461D7C,
+       0.5px  0.5px 0 #461D7C;
+    letter-spacing:.4px;                    /* a “smidge” of spacing */
+    font-weight:800;
+  }
+
+  /* Error state */
+  .empty{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    height:var(--h);
+    color:var(--fg);
+    opacity:.8;
+    font-family:var(--font);
+    font-size:14px;
+  }
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <div id="bar" class="bar" aria-live="polite">
-      <div class="slot"><span class="num">1.</span><span class="team">Loading…</span></div>
-    </div>
+  <div id="bar" class="bar" role="region" aria-label="Top football teams">
+    <div id="grid" class="grid" hidden></div>
+    <div id="empty" class="empty" hidden>Unable to load rankings.</div>
   </div>
 
-  <script>
-    /************ Config via query string ************/
-    const qs = new URLSearchParams(location.search);
-    const poll = (qs.get('poll') || 'ap').toLowerCase();     // 'ap' | 'coaches'
-    const n    = Math.max(1, Math.min(25, +(qs.get('n') || 10)));
-    const bg   = '#' + (qs.get('bg') || 'f5f7fa');
-    const fg   = '#' + (qs.get('fg') || '000000');
-    const hpx  = (qs.get('h') || 38) + 'px';
+<script>
+(function(){
+  const qs = new URLSearchParams(location.search);
 
-    document.documentElement.style.setProperty('--bg', bg);
-    document.documentElement.style.setProperty('--fg', fg);
-    document.documentElement.style.setProperty('--h',  hpx);
+  // --- Params
+  const poll = (qs.get("poll") || "ap").toLowerCase(); // "ap" or "coaches"
+  const n = clampInt(qs.get("n"), 10, 1, 25);
+  const h = clampInt(qs.get("h"), 32, 24, 60);         // px
+  const bg = hexOrDefault(qs.get("bg"), "f5f7fa");
+  const fg = hexOrDefault(qs.get("fg"), "000000");
 
-    // Use the stable Vercel Blob files your /api/update writes:
-    const AP_URL       = "https://u5vu5e0xbo8k8p8i.public.blob.vercel-storage.com/tcd-ap.json";
-    const COACHES_URL  = "https://u5vu5e0xbo8k8p8i.public.blob.vercel-storage.com/tcd-coaches.json";
-    const SRC = poll === 'coaches' ? COACHES_URL : AP_URL;
+  // Apply CSS variables + scale font & spacing to the height
+  const r = document.documentElement;
+  r.style.setProperty("--n", n);
+  r.style.setProperty("--h", h + "px");
+  r.style.setProperty("--bg", "#" + bg);
+  r.style.setProperty("--fg", "#" + fg);
+  r.style.setProperty("--pad-x", Math.max(8, Math.round(h * 0.30)) + "px");
+  r.style.setProperty("--gap",   Math.max(6, Math.round(h * 0.28)) + "px");
 
-    /************ Team color map (primary text color) ************/
-    const COLORS = {
-      "TEXAS": "#BF5700",
-      "PENN STATE": "#041E42",
-      "OHIO STATE": "#BB0000",
-      "CLEMSON": "#F56600",
-      "GEORGIA": "#BA0C2F",
-      "NOTRE DAME": "#0C2340",
-      "OREGON": "#154733",
-      "ALABAMA": "#9E1B32",
-      "LSU": "#4a22a8",               // brighter purple; outline added via CSS class
-      "MIAMI": "#F47321",             // primary orange
-      "FLORIDA STATE": "#782F40",
-      "MICHIGAN": "#00274C",
-      "USC": "#9D2235",
-      "WASHINGTON": "#4B2E83",
-      "OKLAHOMA": "#841617",
-      "TEXAS A&M": "#500000",
-      "TENNESSEE": "#FF8200"
-      // add more as needed
-    };
+  // Font size heuristic: readable without wrapping
+  const fs = Math.max(12, Math.round(h * 0.52));
+  // Apply to grid via inline style so it’s easy
+  document.getElementById("grid").style.fontSize = fs + "px";
 
-    function colorFor(teamName) {
-      return COLORS[teamName.toUpperCase()] || getComputedStyle(document.documentElement).getPropertyValue('--fg');
-    }
+  // Data source (served as static files from this repo)
+  const SRC = poll === "coaches" ? "/tcd-coaches.json" : "/tcd-ap.json";
 
-    /************ Render ************/
-    async function main(){
-      try{
-        const r = await fetch(SRC, {cache:'no-store'});
-        const data = await r.json();
-        const teams = (data.teams || []).slice(0, n);
+  // Team color map (primary brand colors). Fallback to --fg if unknown.
+  const COLORS = {
+    "Texas":"BF5700",
+    "Penn State":"041E42",
+    "Ohio State":"BB0000",
+    "Clemson":"F56600",
+    "Georgia":"BA0C2F",
+    "Notre Dame":"0C2340",
+    "Oregon":"154733",
+    "Alabama":"9E1B32",
+    "LSU":"FFD700",           // will be overridden by special style above
+    "Miami":"F47321",
+    "Michigan":"00274C",
+    "Florida State":"782F40",
+    "USC":"990000",
+    "UCLA":"0072CE",
+    "Tennessee":"FF8200",
+    "Washington":"4B2E83",
+    "Oklahoma":"841617",
+    "Florida":"FA4616",
+    "Ole Miss":"CE1126",
+    "Auburn":"0C2340",
+    "Texas A&M":"500000",
+    "Kansas State":"512888",
+    "Missouri":"F1B82D",
+    "North Carolina":"7BAFD4",
+    "Utah":"CC0000",
+    "Iowa":"000000",
+    "Wisconsin":"C5050C",
+    "Ole Miss Rebels":"CE1126"
+  };
 
-        const bar = document.getElementById('bar');
-        bar.innerHTML = ''; // clear
+  fetch(SRC, {cache:"no-store"})
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(json => {
+      const teams = Array.isArray(json?.teams) ? json.teams : [];
+      if (!teams.length) throw new Error("empty");
 
-        teams.forEach((t, i) => {
-          const slot = document.createElement('div');
-          slot.className = 'slot';
+      const top = teams
+        .slice(0, n)
+        .map(t => ({ rk: t.rk ?? t.rank ?? 0, name: t.team || t.name || "" }));
 
-          const num = document.createElement('span');
-          num.className = 'num';
-          num.textContent = (t.rk || (i+1)) + '.';
+      render(top);
+    })
+    .catch(() => showError());
 
-          const name = document.createElement('span');
-          name.className = 'team';
-          name.textContent = (t.team || '').trim();
+  function render(list){
+    const grid = document.getElementById("grid");
+    grid.innerHTML = "";
+    for (const t of list){
+      const item = document.createElement("div");
+      item.className = "item";
 
-          // per-team colors
-          name.style.color = colorFor(name.textContent);
+      const rk = document.createElement("span");
+      rk.className = "rk";
+      rk.textContent = (t.rk || "?") + ".";
+      item.appendChild(rk);
 
-          // special LSU treatment: gold outline per letter + small spacing
-          if (name.textContent.toUpperCase() === 'LSU') {
-            name.classList.add('lsu');
-          }
+      const team = document.createElement("span");
+      team.className = "team";
+      team.setAttribute("data-team", normalizeTeamKey(t.name));
+      team.textContent = t.name;
 
-          slot.appendChild(num);
-          slot.appendChild(name);
-          bar.appendChild(slot);
-        });
-      }catch(err){
-        const bar = document.getElementById('bar');
-        bar.innerHTML = '<div class="slot">Unable to load rankings.</div>';
-        console.error(err);
+      // Colorize by team if we have a mapping (except LSU, which is styled via CSS)
+      if (t.name !== "LSU") {
+        const hex = COLORS[t.name] || COLORS[normalizeTeamKey(t.name)];
+        if (hex) team.style.color = "#" + hex;
       }
+      item.appendChild(team);
+
+      grid.appendChild(item);
     }
-    main();
-  </script>
+    grid.hidden = false;
+    document.getElementById("empty").hidden = true;
+  }
+
+  function showError(){
+    document.getElementById("grid").hidden = true;
+    document.getElementById("empty").hidden = false;
+  }
+
+  // --- helpers
+  function clampInt(v, def, min, max){
+    const n = Math.floor(+v);
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+  }
+
+  function hexOrDefault(s, def){
+    const m = (s || "").toString().trim().replace(/^#/, "");
+    if (/^[0-9a-fA-F]{6}$/.test(m)) return m.toLowerCase();
+    if (/^[0-9a-fA-F]{3}$/.test(m)) return m.split("").map(x=>x+x).join("").toLowerCase();
+    return def.toLowerCase();
+  }
+
+  function normalizeTeamKey(name){
+    // Use consistent keys for the color map
+    return (name || "").replace(/\s+/g, " ").trim();
+  }
+})();
+</script>
 </body>
 </html>
+
+
