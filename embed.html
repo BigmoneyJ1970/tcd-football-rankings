@@ -1,0 +1,88 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TCD CFB Top 25 (Embed)</title>
+<style>
+  :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+  body { margin: 0; background: #f6f7fb; }
+  .wrap { max-width: 360px; margin: 0 auto; padding: 8px; }
+  .box { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; margin: 8px 0; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .head { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; }
+  .head h3 { font-size: 16px; margin: 0; }
+  .meta { font-size: 12px; opacity: .6; }
+  .scroll { max-height: 320px; overflow: auto; border-top: 1px solid #eee; }
+  .row { display: flex; gap: 8px; padding: 6px 12px; font-size: 14px; border-bottom: 1px dashed #eee; }
+  .row span:nth-child(1) { width: 20px; opacity: .7; }
+  .row span:nth-child(2) { flex: 1; }
+  .row span:nth-child(3) { width: 52px; text-align: right; opacity: .8; }
+  .row span:nth-child(4) { width: 70px; text-align: right; color: #64748b; }
+  .link { display: block; text-align: center; font-size: 12px; color: #2563eb; text-decoration: none; margin: 10px 8px 2px; }
+</style>
+
+<div class="wrap" id="app">
+  <div class="box">
+    <div class="head">
+      <h3>AP Top 25</h3>
+      <div id="apMeta" class="meta"></div>
+    </div>
+    <div id="apList" class="scroll"></div>
+  </div>
+
+  <div class="box">
+    <div class="head">
+      <h3>Coaches Top 25</h3>
+      <div id="coMeta" class="meta"></div>
+    </div>
+    <div id="coList" class="scroll"></div>
+  </div>
+
+  <a class="link" href="https://tcd-football-rankings.vercel.app/" target="_blank" rel="noopener">See full tables →</a>
+</div>
+
+<script>
+  async function getUrls() {
+    // Try your serverless updater first (returns {apUrl, coachesUrl})
+    try {
+      const r = await fetch('/api/update?src=embed', { cache: 'no-cache' });
+      if (r.ok) {
+        const j = await r.json();
+        if (j.apUrl && j.coachesUrl) return j;
+      }
+    } catch (_) {}
+    // Fallback to the repo files (works even if update API is down)
+    return { apUrl: '/tcd-ap.json', coachesUrl: '/tcd-coaches.json' };
+  }
+
+  async function loadJson(url) {
+    const r = await fetch(url, { cache: 'no-cache' });
+    if (!r.ok) throw new Error('fetch failed: ' + url);
+    return r.json();
+  }
+
+  function setMeta(el, data) {
+    const d = new Date(data.lastUpdated || Date.now());
+    el.textContent = d.toLocaleString();
+  }
+
+  function makeRow(i, t) {
+    const div = document.createElement('div');
+    div.className = 'row';
+    div.innerHTML = `<span>${i}</span><span>${t.team}</span><span>${t.rec}</span><span>${t.conf || ''}</span>`;
+    return div;
+  }
+
+  (async () => {
+    const app = document.getElementById('app');
+    try {
+      const { apUrl, coachesUrl } = await getUrls();
+      const [ap, co] = await Promise.all([loadJson(apUrl), loadJson(coachesUrl)]);
+      setMeta(document.getElementById('apMeta'), ap);
+      setMeta(document.getElementById('coMeta'), co);
+      ap.teams.forEach((t, i) => document.getElementById('apList').appendChild(makeRow(i + 1, t)));
+      co.teams.forEach((t, i) => document.getElementById('coList').appendChild(makeRow(i + 1, t)));
+    } catch (e) {
+      app.innerHTML = '<div class="box"><div style="padding:12px">Unable to load rankings right now.</div></div>';
+      console.error(e);
+    }
+  })();
+</script>
