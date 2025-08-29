@@ -1,0 +1,72 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+:root{
+  --h:34px; --bg:#0f172a; --fg:#ffffff; --label:#93c5fd;
+  --gap:28px; --dur:55s;
+  --font:14px/var(--h) system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:var(--h);background:var(--bg);color:var(--fg);font:var(--font)}
+.ticker{position:relative;overflow:hidden;height:var(--h);white-space:nowrap}
+.track{display:inline-block;padding-left:100%;animation:scroll var(--dur) linear infinite;will-change:transform}
+.label{margin-right:12px;color:var(--label);text-transform:uppercase;font-weight:600;letter-spacing:.03em}
+.item + .item::before{content:"|";opacity:.35;margin:0 var(--gap)}
+@keyframes scroll{to{transform:translateX(-100%)}}
+</style>
+
+<div class="ticker">
+  <div id="track" class="track">
+    <span class="label" id="lab">AP TOP 25</span>
+    <span id="line"></span>
+    <span id="dup" aria-hidden="true"></span>
+  </div>
+</div>
+
+<script>
+(async () => {
+  const qs = new URLSearchParams(location.search);
+  const poll  = (qs.get('poll')||'ap').toLowerCase(); // 'ap' or 'coaches'
+  const n     = Math.max(1, Math.min(25, +(qs.get('n')||25)));
+  const speed = +qs.get('speed') || 55;               // seconds per loop
+  const bg = qs.get('bg'), fg = qs.get('fg');
+  if(bg) document.documentElement.style.setProperty('--bg','#'+bg.replace('#',''));
+  if(fg) document.documentElement.style.setProperty('--fg','#'+fg.replace('#',''));
+  document.documentElement.style.setProperty('--dur', speed+'s');
+  document.getElementById('lab').textContent =
+    (poll==='coaches'?'COACHES':'AP')+' TOP '+n;
+
+  async function getUrls(){
+    try{
+      const r = await fetch('/api/update?src=ticker',{cache:'no-cache'});
+      if(!r.ok) throw 0;
+      return r.json();
+    }catch{
+      return { apUrl:'/tcd-ap.json', coachesUrl:'/tcd-coaches.json' };
+    }
+  }
+
+  try{
+    const {apUrl, coachesUrl} = await getUrls();
+    const url = (poll==='coaches'?coachesUrl:apUrl);
+    const jr  = await fetch(url,{cache:'no-cache'});
+    const data= await jr.json();
+    const teams=(data.teams||[]).slice(0,n);
+
+    const line=document.getElementById('line');
+    const dup =document.getElementById('dup');
+    const frag=document.createDocumentFragment();
+    teams.forEach((t,i)=>{
+      const s=document.createElement('span');
+      s.className='item';
+      s.textContent = `${i+1}. ${t.team}`;
+      frag.appendChild(s);
+    });
+    line.appendChild(frag);
+    dup.innerHTML=line.innerHTML; // duplicate for seamless loop
+  }catch(e){
+    document.body.innerHTML='<div style="padding:8px;font:14px system-ui">Unable to load rankings.</div>';
+  }
+})();
+</script>
