@@ -1,6 +1,5 @@
 {
   "functions": {
-    "api/update.js": { "runtime": "nodejs20.x" },
-    "api/hello.js": { "runtime": "edge" }
+    "api/**/*.js": { "runtime": "nodejs20.x" }
   }
 }
