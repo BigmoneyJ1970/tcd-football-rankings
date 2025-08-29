@@ -1,0 +1,8 @@
+{
+  "name": "tcd-football-rankings",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@vercel/blob": "0.24.1"
+  }
+}
