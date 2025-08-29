@@ -1,156 +1,140 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Top 10</title>
-<style>
-  :root{
-    --bar-h:32px;
-    --bg:#f5f7fa;
-    --fg:#000;
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{
-    margin:0;
-    background:var(--bg);
-    color:var(--fg);
-    font:600 16px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-  }
-  .wrap{
-    height:var(--bar-h);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:0 8px;
-    overflow:hidden;
-    white-space:nowrap;
-  }
-  ol{
-    display:flex;
-    gap:20px;
-    list-style:none;
-    padding:0;
-    margin:0;
-    width:100%;
-    justify-content:space-between;
-  }
-  li{display:flex;gap:.35em;align-items:baseline}
-  .rk{opacity:.85}
-  .team{font-weight:700}
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Top 10 (Embed)</title>
+  <style>
+    :root{
+      --bg:#f5f7fa;
+      --fg:#000;
+      --h:38px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    .wrap{max-width:1400px;margin:0 auto;padding:6px 10px}
+    .bar{
+      display:flex;gap:12px;align-items:center;justify-content:space-between;
+      height:var(--h); line-height:var(--h); white-space:nowrap; overflow:hidden;
+      border-radius:6px;
+    }
+    .slot{
+      flex:1 1 0; display:flex; align-items:center; justify-content:center;
+      font-weight:700; font-size:14px;
+    }
+    .slot .num{opacity:.8;margin-right:.4em;font-variant-numeric:tabular-nums}
+    .team{display:inline-block}
 
-  .wrap{font-size:clamp(12px, calc((var(--bar-h) - 10px)), 22px)}
-  .rk{font-size:.95em}
+    /* LSU special treatment: brighter purple + gold outline per letter + a smidge of spacing */
+    .team.lsu{
+      letter-spacing:.08em;
+      color:#4a22a8; /* brighter purple */
+      text-shadow:
+        -1px -1px 0 #FDD023,  0 -1px 0 #FDD023,  1px -1px 0 #FDD023,
+        -1px  0   0 #FDD023,                      1px  0   0 #FDD023,
+        -1px  1px 0 #FDD023,  0  1px 0 #FDD023,  1px  1px 0 #FDD023;
+    }
 
-  /* LSU: gold text with purple outline per letter + slight spacing */
-  li[data-team="LSU"] .team{
-    color:#FDBB30;
-    -webkit-text-stroke:1px #461D7C;
-    text-shadow:
-      0 1px 0 #461D7C, 0 -1px 0 #461D7C,
-      1px 0 0 #461D7C, -1px 0 0 #461D7C;
-    letter-spacing:.03em;
-  }
-
-  #status{position:absolute;left:-9999px}
-  .debug #status{
-    position:static;padding:6px 8px;
-    font:12px/1.2 ui-monospace,Menlo,Consolas,monospace;color:#b00;
-  }
-</style>
+    /* Responsive font sizing driven by height */
+    @media (min-width:480px){ .slot{font-size:calc(var(--h) * .55)} }
+    @media (max-width:479.98px){ .slot{font-size:calc(var(--h) * .50)} }
+  </style>
 </head>
 <body>
-<div id="status" aria-live="polite"></div>
-<div class="wrap"><ol id="list"><li><span class="rk">1.</span> <span class="team">Placeholder</span></li></ol></div>
+  <div class="wrap">
+    <div id="bar" class="bar" aria-live="polite">
+      <div class="slot"><span class="num">1.</span><span class="team">Loading…</span></div>
+    </div>
+  </div>
 
-<script>
-(function(){
-  const qs = new URLSearchParams(location.search);
+  <script>
+    /************ Config via query string ************/
+    const qs = new URLSearchParams(location.search);
+    const poll = (qs.get('poll') || 'ap').toLowerCase();     // 'ap' | 'coaches'
+    const n    = Math.max(1, Math.min(25, +(qs.get('n') || 10)));
+    const bg   = '#' + (qs.get('bg') || 'f5f7fa');
+    const fg   = '#' + (qs.get('fg') || '000000');
+    const hpx  = (qs.get('h') || 38) + 'px';
 
-  // appearance params
-  const h  = Number(qs.get('h') || 32);
-  const bg = '#' + (qs.get('bg') || 'f5f7fa').replace('#','');
-  const fg = '#' + (qs.get('fg') || '000000').replace('#','');
-  document.documentElement.style.setProperty('--bar-h', h + 'px');
-  document.documentElement.style.setProperty('--bg', bg);
-  document.documentElement.style.setProperty('--fg', fg);
+    document.documentElement.style.setProperty('--bg', bg);
+    document.documentElement.style.setProperty('--fg', fg);
+    document.documentElement.style.setProperty('--h',  hpx);
 
-  const poll = (qs.get('poll') || 'ap').toLowerCase();
-  const n = Math.max(1, Math.min(Number(qs.get('n') || 10), 25));
+    // Use the stable Vercel Blob files your /api/update writes:
+    const AP_URL       = "https://u5vu5e0xbo8k8p8i.public.blob.vercel-storage.com/tcd-ap.json";
+    const COACHES_URL  = "https://u5vu5e0xbo8k8p8i.public.blob.vercel-storage.com/tcd-coaches.json";
+    const SRC = poll === 'coaches' ? COACHES_URL : AP_URL;
 
-  // Optional overrides. If not provided, use same-origin JSON.
-  const apUrlParam      = qs.get('apUrl');
-  const coachesUrlParam = qs.get('coachesUrl');
-  const apDefault       = '/tcd-ap.json';
-  const coachesDefault  = '/tcd-coaches.json';
+    /************ Team color map (primary text color) ************/
+    const COLORS = {
+      "TEXAS": "#BF5700",
+      "PENN STATE": "#041E42",
+      "OHIO STATE": "#BB0000",
+      "CLEMSON": "#F56600",
+      "GEORGIA": "#BA0C2F",
+      "NOTRE DAME": "#0C2340",
+      "OREGON": "#154733",
+      "ALABAMA": "#9E1B32",
+      "LSU": "#4a22a8",               // brighter purple; outline added via CSS class
+      "MIAMI": "#F47321",             // primary orange
+      "FLORIDA STATE": "#782F40",
+      "MICHIGAN": "#00274C",
+      "USC": "#9D2235",
+      "WASHINGTON": "#4B2E83",
+      "OKLAHOMA": "#841617",
+      "TEXAS A&M": "#500000",
+      "TENNESSEE": "#FF8200"
+      // add more as needed
+    };
 
-  const dataUrl = poll === 'coaches'
-    ? (coachesUrlParam || coachesDefault)
-    : (apUrlParam || apDefault);
-
-  const listEl = document.getElementById('list');
-  const statusEl = document.getElementById('status');
-  const debug = qs.get('debug') === '1';
-  if (debug) document.body.classList.add('debug');
-
-  const colorMap = new Map([
-    ['Texas',      '#BF5700'],
-    ['Penn State', '#041E42'],
-    ['Ohio State', '#BB0000'],
-    ['Clemson',    '#F56600'],
-    ['Georgia',    '#BA0C2F'],
-    ['Notre Dame', '#0C2340'],
-    ['Oregon',     '#154733'],
-    ['Alabama',    '#9E1B32'],
-    ['Miami',      '#F47321']
-  ]);
-
-  function setStatus(t){ statusEl.textContent = t; }
-  function toAbs(u){ try { return new URL(u, location.origin).href; } catch { return u; } }
-
-  async function load(){
-    try{
-      const href = toAbs(dataUrl);
-      setStatus('Loading: ' + href);
-      const r = await fetch(href, { cache:'no-store', mode:'cors' });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const json = await r.json();
-
-      const teams = (json.teams || [])
-        .slice()
-        .sort((a,b)=>(a.rk??999)-(b.rk??999))
-        .slice(0,n);
-
-      if (!teams.length) throw new Error('No teams in JSON');
-
-      listEl.innerHTML = '';
-      for (const t of teams){
-        const li = document.createElement('li');
-        li.dataset.team = t.team;
-
-        const rk = document.createElement('span');
-        rk.className = 'rk'; rk.textContent = (t.rk ?? '') + '.';
-
-        const name = document.createElement('span');
-        name.className = 'team'; name.textContent = t.team;
-
-        const hex = colorMap.get(t.team);
-        if (hex && t.team !== 'LSU') name.style.color = hex;
-
-        li.append(rk, document.createTextNode(' '), name);
-        listEl.appendChild(li);
-      }
-      setStatus('OK');
-    }catch(err){
-      listEl.innerHTML = '<li><span class="team">Unable to load rankings.</span></li>';
-      setStatus('Error: ' + (err && err.message ? err.message : String(err)));
+    function colorFor(teamName) {
+      return COLORS[teamName.toUpperCase()] || getComputedStyle(document.documentElement).getPropertyValue('--fg');
     }
-  }
-  load();
-})();
-</script>
+
+    /************ Render ************/
+    async function main(){
+      try{
+        const r = await fetch(SRC, {cache:'no-store'});
+        const data = await r.json();
+        const teams = (data.teams || []).slice(0, n);
+
+        const bar = document.getElementById('bar');
+        bar.innerHTML = ''; // clear
+
+        teams.forEach((t, i) => {
+          const slot = document.createElement('div');
+          slot.className = 'slot';
+
+          const num = document.createElement('span');
+          num.className = 'num';
+          num.textContent = (t.rk || (i+1)) + '.';
+
+          const name = document.createElement('span');
+          name.className = 'team';
+          name.textContent = (t.team || '').trim();
+
+          // per-team colors
+          name.style.color = colorFor(name.textContent);
+
+          // special LSU treatment: gold outline per letter + small spacing
+          if (name.textContent.toUpperCase() === 'LSU') {
+            name.classList.add('lsu');
+          }
+
+          slot.appendChild(num);
+          slot.appendChild(name);
+          bar.appendChild(slot);
+        });
+      }catch(err){
+        const bar = document.getElementById('bar');
+        bar.innerHTML = '<div class="slot">Unable to load rankings.</div>';
+        console.error(err);
+      }
+    }
+    main();
+  </script>
 </body>
 </html>
+
 
 
