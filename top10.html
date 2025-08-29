@@ -15,7 +15,7 @@
     height: var(--h);
     display: flex;
     align-items: center;
-    justify-content: space-evenly;    /* even spacing across full width */
+    justify-content: space-evenly;              /* full-width even spacing */
     white-space: nowrap;
     overflow: hidden;
     box-sizing: border-box;
@@ -26,8 +26,15 @@
   .team {
     font-weight: 800;
     letter-spacing: .2px;
-    color: var(--team, var(--fg));    /* falls back to fg if no mapped color */
-    text-shadow: 0 1px 0 rgba(0,0,0,.08); /* subtle readability boost */
+    color: var(--team, var(--fg));              /* default to fg if unknown */
+    text-shadow: 0 1px 0 rgba(0,0,0,.08);
+  }
+  /* gold-bordered pill variant (for LSU) */
+  .team.accent {
+    border: 2px solid var(--accent, #FDD023);   /* LSU Gold */
+    border-radius: 8px;
+    padding: 2px 8px;
+    line-height: 1.25;
   }
 </style>
 
@@ -36,7 +43,7 @@
 <script>
   // --- Query params ---
   const q    = new URLSearchParams(location.search);
-  const poll = (q.get('poll') || 'ap').toLowerCase();    // 'ap' or 'coaches'
+  const poll = (q.get('poll') || 'ap').toLowerCase();   // 'ap' | 'coaches'
   const n    = Math.max(1, Math.min(25, +(q.get('n') || 10)));
   const h    = +(q.get('h') || 44);
   const bg   = '#' + (q.get('bg') || 'f5f7fa');
@@ -49,7 +56,6 @@
   // --- Team color map (primary brand colors) ---
   const COLOR = (() => {
     const m = new Map();
-    // SEC / ACC / B1G usual suspects
     m.set('texas',        '#BF5700');
     m.set('pennstate',    '#041E42');
     m.set('ohiostate',    '#BB0000');
@@ -58,10 +64,11 @@
     m.set('notredame',    '#0C2340');
     m.set('oregon',       '#154733');
     m.set('alabama',      '#9E1B32');
-    m.set('lsu',          '#461D7C');
+    /* LSU — brighter purple */
+    m.set('lsu',          '#582C83');           // brighter than #461D7C
     m.set('miami',        '#F47321');
 
-    // Helpful extras you might see in Top 25
+    // extras you may see
     m.set('michigan',     '#00274C');
     m.set('washington',   '#4B2E83');
     m.set('floridastate', '#782F40');
@@ -81,18 +88,23 @@
     return m;
   })();
 
+  // Accent (border) color map
+  const ACCENT = new Map([
+    ['lsu', '#FDD023'],   // LSU Gold
+  ]);
+
   const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
   (async () => {
     const bar = document.getElementById('bar');
     try {
-      // 1) Get latest blob URLs
+      // 1) Get fresh blob URLs
       const r1 = await fetch('/api/update', { cache: 'no-store' });
       if (!r1.ok) throw new Error('update failed ' + r1.status);
       const j = await r1.json();
       if (!j.ok) throw new Error('update not ok');
 
-      // 2) Fetch rankings JSON
+      // 2) Pull chosen poll JSON
       const url = poll === 'coaches' ? j.coachesUrl : j.apUrl;
       const r2 = await fetch(url, { cache: 'no-store' });
       if (!r2.ok) throw new Error('blob fetch failed ' + r2.status);
@@ -101,18 +113,22 @@
       const teams = (data?.teams || []).slice(0, n);
       if (!teams.length) throw new Error('no teams in data');
 
-      // 3) Render evenly across
+      // 3) Render bar
       bar.textContent = '';
       teams.forEach((t, i) => {
         const el = document.createElement('span');
         el.className = 'item';
         const teamName = t.team || t.name || '';
         const key = norm(teamName);
-        const color = COLOR.get(key);
+        const color  = COLOR.get(key);
+        const accent = ACCENT.get(key);  // LSU => gold
 
         el.innerHTML = `
           <span class="rk">${i + 1}.</span>
-          <span class="team" style="${color ? `--team:${color}` : ''}">${teamName}</span>
+          <span class="team ${accent ? 'accent' : ''}"
+                style="${color ? `--team:${color};` : ''}${accent ? `--accent:${accent};` : ''}">
+            ${teamName}
+          </span>
         `;
         bar.appendChild(el);
       });
@@ -122,3 +138,4 @@
     }
   })();
 </script>
+
