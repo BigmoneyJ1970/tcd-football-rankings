@@ -1,4 +1,4 @@
-import { put } from '@vercel/blob';
+import { put } from '@vercel/blob/client';
 
 export const config = { runtime: 'edge' };
 
