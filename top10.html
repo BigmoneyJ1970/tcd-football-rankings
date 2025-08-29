@@ -1,102 +1,69 @@
 <!doctype html>
-<html lang="en">
-<head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>CFB Top 10 Bar</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TCD Top 10</title>
 <style>
-  :root{
-    --bg:#f5f7fa;      /* background */
-    --fg:#000000;      /* default text */
-    --bar-h:44px;      /* height (px) */
+  :root { --h: 44px; }
+  body {
+    margin: 0;
+    font: 600 16px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background: var(--bg, #f5f7fa);
+    color: var(--fg, #000);
   }
-  html,body{margin:0}
-  body{
-    font:600 16px/1.1 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    background:var(--bg);
-    color:var(--fg);
+  .wrap {
+    width: 100%;
+    height: var(--h);
+    display: flex;
+    align-items: center;
+    justify-content: space-evenly; /* even spacing across full width */
+    white-space: nowrap;
+    overflow: hidden;
+    box-sizing: border-box;
+    padding: 0 12px;
   }
-
-  /* full-width, evenly spaced */
-  .bar{
-    display:grid;
-    grid-template-columns:repeat(10,1fr);
-    align-items:center;
-    justify-items:center;
-    gap:12px;
-    height:var(--bar-h);
-    padding:6px 8px;
-    box-sizing:border-box;
-    white-space:nowrap;
-  }
-
-  .item{display:flex;align-items:center;gap:6px;min-width:0}
-  .rk{opacity:.7;font-variant-numeric:tabular-nums}
-  .team{color:var(--team-color, var(--fg));overflow:hidden;text-overflow:ellipsis}
-
-  /* Mobile: 5 per row */
-  @media (max-width: 900px){
-    :root{--bar-h:68px}
-    .bar{grid-template-columns:repeat(5,1fr);height:auto;padding:8px}
-  }
+  .item { display: inline-flex; gap: 8px; align-items: center; }
+  .rk { opacity: .6; width: 1.6em; text-align: right; }
+  .team { letter-spacing: .2px; }
 </style>
-</head>
-<body>
-  <div id="bar" class="bar" role="list" aria-label="Top 10 college football teams"></div>
-
+<div class="wrap" id="bar">Loading…</div>
 <script>
-/* Simple team color map (add more anytime) */
-const TEAM_COLORS = {
-  "Texas":"#BF5700","Penn State":"#041E42","Ohio State":"#BB0000","Clemson":"#F56600",
-  "Georgia":"#BA0C2F","Notre Dame":"#0C2340","Oregon":"#154733","Alabama":"#9E1B32",
-  "LSU":"#461D7C","Miami":"#F47321","Arizona State":"#8C1D40","Illinois":"#13294B",
-  "South Carolina":"#73000A","Michigan":"#00274C","Oklahoma":"#841617","SMU":"#CC0000",
-  "Kansas State":"#512888","Texas A&M":"#500000","Indiana":"#990000","Ole Miss":"#CE1126",
-  "Iowa State":"#C8102E","Florida":"#0021A5","Tennessee":"#FF8200","Kansas":"#0051BA",
-  "Utah":"#CC0000","Washington":"#4B2E83","USC":"#990000","Florida State":"#782F40",
-  "North Carolina":"#7BAFD4","Oklahoma State":"#FF7300","Auburn":"#0C2340","Missouri":"#F1B82D"
-};
+  // --- read query params ---
+  const q = new URLSearchParams(location.search);
+  const poll = (q.get('poll') || 'ap').toLowerCase();     // 'ap' or 'coaches'
+  const n = Math.max(1, Math.min(25, +(q.get('n') || 10)));
+  const h = +(q.get('h') || 44);
+  const bg = '#' + (q.get('bg') || 'f5f7fa');
+  const fg = '#' + (q.get('fg') || '000000');
 
-const params = new URLSearchParams(location.search);
-const poll = (params.get('poll') || 'ap').toLowerCase();   // ap | coaches
-const n    = Math.max(1, Math.min(10, +(params.get('n')||10)));  // up to 10
-const bg   = params.get('bg');    // e.g. ffffff
-const fg   = params.get('fg');    // e.g. 000000
-const h    = params.get('h');     // e.g. 44 (px)
+  // apply styles from query
+  document.documentElement.style.setProperty('--h', h + 'px');
+  document.documentElement.style.setProperty('--bg', bg);
+  document.documentElement.style.setProperty('--fg', fg);
 
-if(bg) document.documentElement.style.setProperty('--bg', '#'+bg.replace('#',''));
-if(fg) document.documentElement.style.setProperty('--fg', '#'+fg.replace('#',''));
-if(h)  document.documentElement.style.setProperty('--bar-h', h.replace(/[^0-9]/g,'')+'px');
+  // choose source
+  const file = poll === 'coaches' ? 'tcd-coaches.json' : 'tcd-ap.json';
 
-const dataUrl = poll === 'coaches' ? './tcd-coaches.json' : './tcd-ap.json';
+  (async () => {
+    const bar = document.getElementById('bar');
+    try {
+      const res = await fetch(`/${file}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Fetch failed ' + res.status);
+      const data = await res.json();
 
-fetch(dataUrl).then(r => r.json()).then(data => {
-  const list = (data?.teams || []).slice(0, n);
-  const bar  = document.getElementById('bar');
-  if(!list.length){ bar.textContent = 'No data'; return; }
+      const teams = (data?.teams || []).slice(0, n);
+      if (!teams.length) throw new Error('No teams found');
 
-  list.forEach(t => {
-    const item = document.createElement('div');
-    item.className = 'item';
-    item.setAttribute('role','listitem');
-
-    const rk = document.createElement('span');
-    rk.className = 'rk';
-    rk.textContent = t.rk + '.';
-
-    const team = document.createElement('span');
-    team.className = 'team';
-    team.textContent = t.team;
-
-    const color = TEAM_COLORS[t.team];
-    if(color) team.style.setProperty('--team-color', color);
-
-    item.append(rk, team);
-    bar.appendChild(item);
-  });
-}).catch(() => {
-  document.getElementById('bar').textContent = 'Unable to load rankings.';
-});
+      bar.textContent = '';
+      for (let i = 0; i < teams.length; i++) {
+        const t = teams[i];
+        const el = document.createElement('span');
+        el.className = 'item';
+        el.innerHTML = `<span class="rk">${i+1}.</span><span class="team">${t.team}</span>`;
+        bar.appendChild(el);
+      }
+    } catch (e) {
+      bar.textContent = 'Unable to load rankings.';
+      console.error(e);
+    }
+  })();
 </script>
-</body>
-</html>
