@@ -15,7 +15,7 @@
     height: var(--h);
     display: flex;
     align-items: center;
-    justify-content: space-evenly;              /* full-width even spacing */
+    justify-content: space-evenly;          /* even spacing across page */
     white-space: nowrap;
     overflow: hidden;
     box-sizing: border-box;
@@ -26,15 +26,26 @@
   .team {
     font-weight: 800;
     letter-spacing: .2px;
-    color: var(--team, var(--fg));              /* default to fg if unknown */
+    color: var(--team, var(--fg));          /* per-team color */
     text-shadow: 0 1px 0 rgba(0,0,0,.08);
   }
-  /* gold-bordered pill variant (for LSU) */
-  .team.accent {
-    border: 2px solid var(--accent, #FDD023);   /* LSU Gold */
-    border-radius: 8px;
-    padding: 2px 8px;
-    line-height: 1.25;
+  /* Letter outline (used for LSU). Works in Chromium/Safari via text-stroke,
+     and falls back to multi-direction text-shadow in Firefox. */
+  .team.outline {
+    /* WebKit/Chromium */
+    -webkit-text-stroke: 2px var(--outline, #FDD023);
+    paint-order: stroke fill;
+
+    /* Firefox fallback */
+    text-shadow:
+      1px 0   0 var(--outline, #FDD023),
+     -1px 0   0 var(--outline, #FDD023),
+      0   1px 0 var(--outline, #FDD023),
+      0  -1px 0 var(--outline, #FDD023),
+      1px 1px  0 var(--outline, #FDD023),
+     -1px -1px 0 var(--outline, #FDD023),
+      1px -1px 0 var(--outline, #FDD023),
+     -1px 1px  0 var(--outline, #FDD023);
   }
 </style>
 
@@ -43,7 +54,7 @@
 <script>
   // --- Query params ---
   const q    = new URLSearchParams(location.search);
-  const poll = (q.get('poll') || 'ap').toLowerCase();   // 'ap' | 'coaches'
+  const poll = (q.get('poll') || 'ap').toLowerCase();     // 'ap' | 'coaches'
   const n    = Math.max(1, Math.min(25, +(q.get('n') || 10)));
   const h    = +(q.get('h') || 44);
   const bg   = '#' + (q.get('bg') || 'f5f7fa');
@@ -53,7 +64,7 @@
   document.documentElement.style.setProperty('--bg', bg);
   document.documentElement.style.setProperty('--fg', fg);
 
-  // --- Team color map (primary brand colors) ---
+  // --- Team primary colors ---
   const COLOR = (() => {
     const m = new Map();
     m.set('texas',        '#BF5700');
@@ -64,11 +75,10 @@
     m.set('notredame',    '#0C2340');
     m.set('oregon',       '#154733');
     m.set('alabama',      '#9E1B32');
-    /* LSU — brighter purple */
-    m.set('lsu',          '#582C83');           // brighter than #461D7C
+    /* LSU – brighter purple fill */
+    m.set('lsu',          '#582C83');
     m.set('miami',        '#F47321');
-
-    // extras you may see
+    // (extras)
     m.set('michigan',     '#00274C');
     m.set('washington',   '#4B2E83');
     m.set('floridastate', '#782F40');
@@ -88,9 +98,9 @@
     return m;
   })();
 
-  // Accent (border) color map
-  const ACCENT = new Map([
-    ['lsu', '#FDD023'],   // LSU Gold
+  // Outline (letter stroke) color for special cases
+  const OUTLINE = new Map([
+    ['lsu', '#FDD023'],   // LSU Gold around each purple letter
   ]);
 
   const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -113,20 +123,23 @@
       const teams = (data?.teams || []).slice(0, n);
       if (!teams.length) throw new Error('no teams in data');
 
-      // 3) Render bar
+      // 3) Render
       bar.textContent = '';
       teams.forEach((t, i) => {
         const el = document.createElement('span');
         el.className = 'item';
+
         const teamName = t.team || t.name || '';
         const key = norm(teamName);
-        const color  = COLOR.get(key);
-        const accent = ACCENT.get(key);  // LSU => gold
+        const fillColor   = COLOR.get(key);
+        const outlineGold = OUTLINE.get(key);   // only for LSU
+
+        const cls = 'team' + (outlineGold ? ' outline' : '');
 
         el.innerHTML = `
           <span class="rk">${i + 1}.</span>
-          <span class="team ${accent ? 'accent' : ''}"
-                style="${color ? `--team:${color};` : ''}${accent ? `--accent:${accent};` : ''}">
+          <span class="${cls}"
+                style="${fillColor ? `--team:${fillColor};` : ''}${outlineGold ? `--outline:${outlineGold};` : ''}">
             ${teamName}
           </span>
         `;
