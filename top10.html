@@ -1,154 +1,138 @@
+
 <!doctype html>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>TCD Top 10</title>
-<style>
-  :root { --h: 44px; }
-  body {
-    margin: 0;
-    font: 600 16px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-    background: var(--bg, #f5f7fa);
-    color: var(--fg, #000);
-  }
-  .wrap {
-    width: 100%;
-    height: var(--h);
-    display: flex;
-    align-items: center;
-    justify-content: space-evenly;          /* even spacing across page */
-    white-space: nowrap;
-    overflow: hidden;
-    box-sizing: border-box;
-    padding: 0 12px;
-  }
-  .item { display: inline-flex; gap: 8px; align-items: center; }
-  .rk   { opacity: .55; width: 1.6em; text-align: right; }
-  .team {
-    font-weight: 800;
-    letter-spacing: .2px;
-    color: var(--team, var(--fg));          /* per-team color */
-    text-shadow: 0 1px 0 rgba(0,0,0,.08);
-  }
-  /* Letter outline (used for LSU). Works in Chromium/Safari via text-stroke,
-     and falls back to multi-direction text-shadow in Firefox. */
-  .team.outline {
-    /* WebKit/Chromium */
-    -webkit-text-stroke: 2px var(--outline, #FDD023);
-    paint-order: stroke fill;
-
-    /* Firefox fallback */
-    text-shadow:
-      1px 0   0 var(--outline, #FDD023),
-     -1px 0   0 var(--outline, #FDD023),
-      0   1px 0 var(--outline, #FDD023),
-      0  -1px 0 var(--outline, #FDD023),
-      1px 1px  0 var(--outline, #FDD023),
-     -1px -1px 0 var(--outline, #FDD023),
-      1px -1px 0 var(--outline, #FDD023),
-     -1px 1px  0 var(--outline, #FDD023);
-  }
-</style>
-
-<div class="wrap" id="bar">Loading…</div>
-
-<script>
-  // --- Query params ---
-  const q    = new URLSearchParams(location.search);
-  const poll = (q.get('poll') || 'ap').toLowerCase();     // 'ap' | 'coaches'
-  const n    = Math.max(1, Math.min(25, +(q.get('n') || 10)));
-  const h    = +(q.get('h') || 44);
-  const bg   = '#' + (q.get('bg') || 'f5f7fa');
-  const fg   = '#' + (q.get('fg') || '000000');
-
-  document.documentElement.style.setProperty('--h',  h + 'px');
-  document.documentElement.style.setProperty('--bg', bg);
-  document.documentElement.style.setProperty('--fg', fg);
-
-  // --- Team primary colors ---
-  const COLOR = (() => {
-    const m = new Map();
-    m.set('texas',        '#BF5700');
-    m.set('pennstate',    '#041E42');
-    m.set('ohiostate',    '#BB0000');
-    m.set('clemson',      '#F56600');
-    m.set('georgia',      '#BA0C2F');
-    m.set('notredame',    '#0C2340');
-    m.set('oregon',       '#154733');
-    m.set('alabama',      '#9E1B32');
-    /* LSU – brighter purple fill */
-    m.set('lsu',          '#582C83');
-    m.set('miami',        '#F47321');
-    // (extras)
-    m.set('michigan',     '#00274C');
-    m.set('washington',   '#4B2E83');
-    m.set('floridastate', '#782F40');
-    m.set('oklahoma',     '#841617');
-    m.set('texasam',      '#500000');
-    m.set('kansasstate',  '#512888');
-    m.set('usc',          '#990000');
-    m.set('utah',         '#CC0000');
-    m.set('wisconsin',    '#C5050C');
-    m.set('tennessee',    '#FF8200');
-    m.set('olemiss',      '#CE1126');
-    m.set('missouri',     '#F1B82D');
-    m.set('auburn',       '#0C2340');
-    m.set('tcu',          '#4D1979');
-    m.set('colorado',     '#CFB87C');
-    m.set('northcarolina','#7BAFD4');
-    return m;
-  })();
-
-  // Outline (letter stroke) color for special cases
-  const OUTLINE = new Map([
-    ['lsu', '#FDD023'],   // LSU Gold around each purple letter
-  ]);
-
-  const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
-  (async () => {
-    const bar = document.getElementById('bar');
-    try {
-      // 1) Get fresh blob URLs
-      const r1 = await fetch('/api/update', { cache: 'no-store' });
-      if (!r1.ok) throw new Error('update failed ' + r1.status);
-      const j = await r1.json();
-      if (!j.ok) throw new Error('update not ok');
-
-      // 2) Pull chosen poll JSON
-      const url = poll === 'coaches' ? j.coachesUrl : j.apUrl;
-      const r2 = await fetch(url, { cache: 'no-store' });
-      if (!r2.ok) throw new Error('blob fetch failed ' + r2.status);
-      const data = await r2.json();
-
-      const teams = (data?.teams || []).slice(0, n);
-      if (!teams.length) throw new Error('no teams in data');
-
-      // 3) Render
-      bar.textContent = '';
-      teams.forEach((t, i) => {
-        const el = document.createElement('span');
-        el.className = 'item';
-
-        const teamName = t.team || t.name || '';
-        const key = norm(teamName);
-        const fillColor   = COLOR.get(key);
-        const outlineGold = OUTLINE.get(key);   // only for LSU
-
-        const cls = 'team' + (outlineGold ? ' outline' : '');
-
-        el.innerHTML = `
-          <span class="rk">${i + 1}.</span>
-          <span class="${cls}"
-                style="${fillColor ? `--team:${fillColor};` : ''}${outlineGold ? `--outline:${outlineGold};` : ''}">
-            ${teamName}
-          </span>
-        `;
-        bar.appendChild(el);
-      });
-    } catch (err) {
-      console.error(err);
-      bar.textContent = 'Unable to load rankings.';
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Top 10 (Embed)</title>
+  <style>
+    :root{
+      --bg:#f5f7fa;
+      --fg:#000;
+      --h:38px;
     }
-  })();
-</script>
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    .wrap{max-width:1400px;margin:0 auto;padding:6px 10px}
+    .bar{
+      display:flex;gap:12px;align-items:center;justify-content:space-between;
+      height:var(--h); line-height:var(--h); white-space:nowrap; overflow:hidden;
+      border-radius:6px;
+    }
+    .slot{
+      flex:1 1 0; display:flex; align-items:center; justify-content:center;
+      font-weight:700; font-size:14px;
+    }
+    .slot .num{opacity:.8;margin-right:.4em;font-variant-numeric:tabular-nums}
+    .team{display:inline-block}
 
+    /* LSU special treatment: brighter purple + gold outline per letter + a smidge of spacing */
+    .team.lsu{
+      letter-spacing:.08em;
+      color:#4a22a8; /* brighter purple */
+      text-shadow:
+        -1px -1px 0 #FDD023,  0 -1px 0 #FDD023,  1px -1px 0 #FDD023,
+        -1px  0   0 #FDD023,                      1px  0   0 #FDD023,
+        -1px  1px 0 #FDD023,  0  1px 0 #FDD023,  1px  1px 0 #FDD023;
+    }
+
+    /* Responsive font sizing driven by height */
+    @media (min-width:480px){ .slot{font-size:calc(var(--h) * .55)} }
+    @media (max-width:479.98px){ .slot{font-size:calc(var(--h) * .50)} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="bar" class="bar" aria-live="polite">
+      <div class="slot"><span class="num">1.</span><span class="team">Loading…</span></div>
+    </div>
+  </div>
+
+  <script>
+    /************ Config via query string ************/
+    const qs = new URLSearchParams(location.search);
+    const poll = (qs.get('poll') || 'ap').toLowerCase();     // 'ap' | 'coaches'
+    const n    = Math.max(1, Math.min(25, +(qs.get('n') || 10)));
+    const bg   = '#' + (qs.get('bg') || 'f5f7fa');
+    const fg   = '#' + (qs.get('fg') || '000000');
+    const hpx  = (qs.get('h') || 38) + 'px';
+
+    document.documentElement.style.setProperty('--bg', bg);
+    document.documentElement.style.setProperty('--fg', fg);
+    document.documentElement.style.setProperty('--h',  hpx);
+
+    // Use the stable Vercel Blob files your /api/update writes:
+    const AP_URL       = "https://u5vu5e0xbo8k8p8i.public.blob.vercel-storage.com/tcd-ap.json";
+    const COACHES_URL  = "https://u5vu5e0xbo8k8p8i.public.blob.vercel-storage.com/tcd-coaches.json";
+    const SRC = poll === 'coaches' ? COACHES_URL : AP_URL;
+
+    /************ Team color map (primary text color) ************/
+    const COLORS = {
+      "TEXAS": "#BF5700",
+      "PENN STATE": "#041E42",
+      "OHIO STATE": "#BB0000",
+      "CLEMSON": "#F56600",
+      "GEORGIA": "#BA0C2F",
+      "NOTRE DAME": "#0C2340",
+      "OREGON": "#154733",
+      "ALABAMA": "#9E1B32",
+      "LSU": "#4a22a8",               // brighter purple; outline added via CSS class
+      "MIAMI": "#F47321",             // primary orange
+      "FLORIDA STATE": "#782F40",
+      "MICHIGAN": "#00274C",
+      "USC": "#9D2235",
+      "WASHINGTON": "#4B2E83",
+      "OKLAHOMA": "#841617",
+      "TEXAS A&M": "#500000",
+      "TENNESSEE": "#FF8200"
+      // add more as needed
+    };
+
+    function colorFor(teamName) {
+      return COLORS[teamName.toUpperCase()] || getComputedStyle(document.documentElement).getPropertyValue('--fg');
+    }
+
+    /************ Render ************/
+    async function main(){
+      try{
+        const r = await fetch(SRC, {cache:'no-store'});
+        const data = await r.json();
+        const teams = (data.teams || []).slice(0, n);
+
+        const bar = document.getElementById('bar');
+        bar.innerHTML = ''; // clear
+
+        teams.forEach((t, i) => {
+          const slot = document.createElement('div');
+          slot.className = 'slot';
+
+          const num = document.createElement('span');
+          num.className = 'num';
+          num.textContent = (t.rk || (i+1)) + '.';
+
+          const name = document.createElement('span');
+          name.className = 'team';
+          name.textContent = (t.team || '').trim();
+
+          // per-team colors
+          name.style.color = colorFor(name.textContent);
+
+          // special LSU treatment: gold outline per letter + small spacing
+          if (name.textContent.toUpperCase() === 'LSU') {
+            name.classList.add('lsu');
+          }
+
+          slot.appendChild(num);
+          slot.appendChild(name);
+          bar.appendChild(slot);
+        });
+      }catch(err){
+        const bar = document.getElementById('bar');
+        bar.innerHTML = '<div class="slot">Unable to load rankings.</div>';
+        console.error(err);
+      }
+    }
+    main();
+  </script>
+</body>
+</html>
