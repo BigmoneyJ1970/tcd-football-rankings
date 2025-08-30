@@ -44,6 +44,14 @@ ol{
   justify-content:space-between;
   gap:6px;                /* keep/interpolate as you like */
 }
+    /* Desktop: slightly narrow the bar so items sit closer */
+@media (min-width:1025px){
+  .wrap{
+    max-width: 1120px;      /* tweak this number to taste (e.g., 1100–1200) */
+    margin-inline: auto;    /* center the bar */
+  }
+}
+
   /* enable horizontal swipe/scroll on tablets & phones */
 @media (max-width:1024px){
   .wrap{
