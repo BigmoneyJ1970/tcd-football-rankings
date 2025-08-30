@@ -1,14 +1,15 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>TCD Football – Top 10</title>
 <style>
 :root{
   --bar-h:32px;          /* change via ?h= */
   --bg:#f5f7fa;          /* change via ?bg= */
   --fg:#000000;          /* change via ?fg= */
+  --n:10;                /* will be set from ?n= by JS */
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -18,53 +19,62 @@ body{
   color:var(--fg);
   font:600 16px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
 }
+
+/* Bar wrapper */
 .wrap{
   height:var(--bar-h);
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:0 8px;
+  padding:0 10px;               /* small gutters so ends don’t kiss the edge */
   overflow:hidden;
   white-space:nowrap;
+
+  /* font scales with bar height AND how many items must fit across the viewport */
+  font-size: clamp(
+    11px,
+    min(
+      calc(var(--bar-h) - 14px),
+      calc((100vw - 24px) / var(--n) * 0.9)
+    ),
+    18px
+  );
 }
 
-/* The list row */
+/* Make the list stretch full width with equal spacing */
 ol{
   display:flex;
-  align-items:baseline;
-  justify-content:center;
+  width:100%;
+  gap:0;                        /* equal separation handled by space-evenly */
+  justify-content:space-evenly; /* equal gaps including the edges */
   list-style:none;
   padding:0;
   margin:0;
-  width:100%;
-  /* tighter gap so ten names fit */
-  gap:clamp(10px,1.8vw,18px);
+  align-items:baseline;
 }
 
-/* text sizes tuned for 32px bar; scales with ?h= */
-.wrap{ font-size: clamp(11px, calc(var(--bar-h) - 16px), 18px); }
-.rk{ opacity:.85; font-size:.9em; }
+.rk{ opacity:.85; font-size:.9em; margin-right:.25em; }
 .team{ font-weight:700; }
 
-/* ---------- TEAM COLORS (more can be added anytime) ---------- */
-[data-team="Texas"] .team       { color:#BF5700; }  /* Burnt Orange */
-[data-team="Penn State"] .team   { color:#041E42; }  /* PSU Blue */
-[data-team="Ohio State"] .team   { color:#BB0000; }  /* Buckeye Scarlet */
-[data-team="Clemson"] .team      { color:#F56600; }  /* Clemson Orange */
-[data-team="Georgia"] .team      { color:#BA0C2F; }  /* Bulldog Red */
-[data-team="Notre Dame"] .team   { color:#0C2340; }  /* ND Blue */
-[data-team="Oregon"] .team       { color:#154733; }  /* Oregon Green */
-[data-team="Alabama"] .team      { color:#9E1B32; }  /* Crimson */
-[data-team="Miami"] .team        { color:#F47321; }  /* Canes Orange */
+/* ---------- TEAM COLORS ---------- */
+[data-team="Texas"] .team       { color:#BF5700; }
+[data-team="Penn State"] .team   { color:#041E42; }
+[data-team="Ohio State"] .team   { color:#BB0000; }
+[data-team="Clemson"] .team      { color:#F56600; }
+[data-team="Georgia"] .team      { color:#BA0C2F; }
+[data-team="Notre Dame"] .team   { color:#0C2340; }
+[data-team="Oregon"] .team       { color:#154733; }
+[data-team="Alabama"] .team      { color:#9E1B32; }
+[data-team="Miami"] .team        { color:#F47321; }
 
 /* LSU: purple letters with gold outline on each letter */
 [data-team="LSU"] .team{
-  color:#461D7C;                          /* LSU purple */
-  -webkit-text-stroke:1px #FDBB30;        /* gold edge (WebKit) */
-  text-shadow:                             /* gold edge fallback */
+  color:#461D7C;                           /* LSU purple */
+  -webkit-text-stroke:1px #FDBB30;         /* gold edge (WebKit) */
+  text-shadow:                              /* gold edge fallback */
     0 1px 0 #FDBB30, 0 -1px 0 #FDBB30,
     1px 0 0 #FDBB30, -1px 0 0 #FDBB30;
-  letter-spacing:.03em;                   /* tiny separation between letters */
+  letter-spacing:.03em;                    /* tiny separation between letters */
 }
 </style>
 </head>
@@ -85,18 +95,20 @@ ol{
   document.documentElement.style.setProperty('--bg', bg);
   document.documentElement.style.setProperty('--fg', fg);
 
-  // Poll and sources
+  // Poll & sources
   const poll = (q.get('poll') || 'ap').toLowerCase();
   const apUrl      = q.get('apUrl')      || '/tcd-ap.json';
   const coachesUrl = q.get('coachesUrl') || '/tcd-coaches.json';
   const src = poll === 'coaches' ? coachesUrl : apUrl;
 
-  // How many teams to show (defaults to 10)
+  // How many teams to show
   const n = Math.max(1, Math.min(25, +q.get('n') || 10));
+  // expose to CSS so font can scale to fit
+  document.documentElement.style.setProperty('--n', n);
 
   const ol = document.getElementById('list');
 
-  fetch(src, {cache: 'no-store'})
+  fetch(src, {cache:'no-store'})
     .then(r => r.json())
     .then(json => {
       const teams = Array.isArray(json?.teams) ? json.teams : [];
@@ -105,7 +117,7 @@ ol{
       ol.innerHTML = '';
       teams.slice(0, n).forEach(t => {
         const li = document.createElement('li');
-        li.dataset.team = t.team; // used by the CSS color rules above
+        li.dataset.team = t.team; // used by color rules
         li.innerHTML = `<span class="rk">${t.rk}.</span><span class="team">${t.team}</span>`;
         ol.appendChild(li);
       });
