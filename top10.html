@@ -79,6 +79,26 @@ ol{
     li{display:flex; gap:.30em; align-items:baseline}
     .rk{opacity:.85}
     .team{font-weight:700}
+/* === SKINS ===================================================== */
+
+/* A) Soft Purple Tint (subtle lavender card + hairline) */
+:root[data-skin="tint"] .wrap{
+  background: linear-gradient(180deg,#FBF9FF,#F5F0FF);
+  border: 1px solid #E9E1FF;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(17,24,39,.04);
+}
+
+/* C) Clean Lines (ultra subtle – top/bottom hairlines only) */
+:root[data-skin="lines"] body { background: transparent; }
+:root[data-skin="lines"] .wrap{
+  background: transparent;
+  border-top: 1px solid rgba(31,41,55,.08);
+  border-bottom: 1px solid rgba(31,41,55,.08);
+  border-radius: 0;
+  box-shadow: none;
+}
+/* =============================================================== */
 
 /* -------- LSU special: purple text with gold outline on each letter -------- */
 [data-team="LSU"]{
@@ -115,6 +135,8 @@ ol{
     document.documentElement.style.setProperty('--bar-h', h + 'px');
     document.documentElement.style.setProperty('--bg', bg);
     document.documentElement.style.setProperty('--fg', fg);
+const skin = (qp.get('skin') || '').toLowerCase();
+if (skin) document.documentElement.setAttribute('data-skin', skin);
 
     /* ---- team color map (fill color; LSU outline handled in CSS) ---- */
     const TEAM_COLORS = {
