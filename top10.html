@@ -2,15 +2,15 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TCD — Top 10</title>
 
   <style>
-  /* ---------- Base layout (kept here so you don't have to hunt) ---------- */
+  /* -------- Base (tweak via URL params) -------- */
   :root{
-    --bar-h:32px;             /* height via ?h= */
-    --bg:#f5f7fa;             /* background via ?bg= */
-    --fg:#000;                /* text color via ?fg= */
+    --bar-h:32px;       /* height via ?h= */
+    --bg:#f5f7fa;       /* background via ?bg= */
+    --fg:#000000;       /* text color via ?fg= */
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -22,16 +22,14 @@
     overflow:hidden;
     white-space:nowrap;
   }
-
-  /* bar wrapper */
+  /* wrapper */
   .wrap{
     height:var(--bar-h);
     display:flex;
     align-items:center;
     justify-content:center;
-    padding:0 8px;
+    padding:0;
   }
-
   /* the line with the teams */
   ol{
     display:flex;
@@ -40,46 +38,35 @@
     margin:0;
     width:100%;
     align-items:baseline;
-    justify-content:space-between;    /* spreads items edge-to-edge */
-    gap:0;                             /* tiny breathing room; not used by spacing */
+    justify-content:space-between;   /* stretches full width */
+    gap:22px;                        /* tiny breathing room */
     font-size:clamp(12px, calc((var(--bar-h) - 10px)), 22px);
   }
-
-  /* rank number + team name chunk */
-  li{
-    display:flex;
-    align-items:baseline;
-    justify-content:center;
-    gap:.35em;
-    flex:1 1 0;                       /* even width for all 10 */
-    min-width:0;
-  }
+  /* rank + team chunk */
+  li{display:flex; gap:.35em; align-items:baseline}
   .rk{opacity:.85}
   .team{font-weight:700}
 
-  /* ------------- LSU SPECIAL: purple text, gold outline on each letter ------------- */
+  /* -------- LSU special: purple text with gold outline on each letter -------- */
   [data-team="LSU"]{
-    color:#3D2173;                    /* LSU purple */
-    -webkit-text-stroke:1px #FDBB30;  /* gold edge (WebKit) */
+    color:#3D2173; /* LSU purple fill */
+    -webkit-text-stroke:1px #FDBB30; /* gold edge (WebKit) */
     text-shadow:
-      0   1px 0 #FDBB30,
-      0  -1px 0 #FDBB30,
-      1px 0   0 #FDBB30,
-     -1px 0   0 #FDBB30;              /* gold edge fallback */
-    letter-spacing:.03em;             /* tiny separation between letters */
+      0  1px 0 #FDBB30, 0 -1px 0 #FDBB30,
+      1px 0  0 #FDBB30, -1px 0 0 #FDBB30; /* gold edge fallback */
+    letter-spacing:.03em; /* tiny separation between letters */
   }
   </style>
 </head>
-
 <body>
   <div class="wrap">
     <ol id="line" aria-label="Top teams"></ol>
   </div>
 
   <script>
-  /* ---- Query params: poll, n, h, bg, fg, apUrl, coachesUrl ---- */
+  /* ---- read URL params ---- */
   const qp   = new URLSearchParams(location.search);
-  const poll = (qp.get('poll') || 'ap').toLowerCase();      // "ap" | "coaches"
+  const poll = (qp.get('poll') || 'ap').toLowerCase();   // "ap" | "coaches"
   const n    = Math.max(1, +(qp.get('n') || 10));
   const h    = +(qp.get('h') || 32);
   const bg   = '#' + (qp.get('bg') || 'f5f7fa').replace('#','');
@@ -89,14 +76,7 @@
   document.documentElement.style.setProperty('--bg', bg);
   document.documentElement.style.setProperty('--fg', fg);
 
-  /* Default JSON locations (overridable by ?apUrl= & ?coachesUrl=) */
-  const defaultAP       = '/tcd-ap.json';
-  const defaultCoaches  = '/tcd-coaches.json';
-  const apUrlParam      = qp.get('apUrl');
-  const coachesUrlParam = qp.get('coachesUrl');
-  const dataUrl = (poll === 'ap' ? (apUrlParam || defaultAP) : (coachesUrlParam || defaultCoaches)) + ((/\?/.test((poll==='ap' ? (apUrlParam||'') : (coachesUrlParam||'')))) ? '' : '') + (apUrlParam||coachesUrlParam ? '' : '');
-
-  /* Simple team color map (feel free to expand). */
+  /* ---- team color map (fill color; LSU outline is in CSS) ---- */
   const TEAM_COLORS = {
     'Texas':      '#BF5700',
     'Penn State': '#162952',
@@ -106,63 +86,36 @@
     'Notre Dame': '#0C2340',
     'Oregon':     '#154733',
     'Alabama':    '#9E1B32',
-    'LSU':        '#3D2173',   // stroke set in CSS above
+    'LSU':        '#3D2173',  // outline handled by CSS
     'Miami':      '#F47321',
-    // handy extras if they slide into the ten later
-    'Michigan':   '#00274C',
-    'USC':        '#990000',
-    'Florida State':'#782F40',
-    'Oklahoma':   '#841617',
-    'Washington': '#4B2E83',
-    'Tennessee':  '#FF8200',
-    'Ole Miss':   '#CE1126',
-    'Utah':       '#CC0000',
   };
 
-  /* Render helpers */
   const byId = id => document.getElementById(id);
 
   function pickTeamName(row){
-    // Try common properties we might see
-    return row.team || row.school || row.name || row.Team || row.school_name || row.School || '';
+    return (row.team || row.Team || row.school || row.School || row.name || row.Name || '').trim();
   }
 
-  // Normalize MANY possible shapes → [{rank, team}, ...]
-  function fromAny(data) {
-    if (!data) return [];
-
-    // direct array [{rank, team}, ...]
+  /* Accepts many shapes and returns [{rank, team}, ...] */
+  function normalizeArray(data){
     if (Array.isArray(data)) {
       return data.map(r => ({
-        rank: +r.rank || +r.Rank || +r.position || +r.r || 0,
+        rank: (+r.rank || +r.Rank || +r.position || +r.Position || 0),
         team: pickTeamName(r)
       }));
     }
-
-    // {ranks:[...] }
-    if (Array.isArray(data.ranks)) {
-      return fromAny(data.ranks);
+    if (data && Array.isArray(data.teams)) {
+      return data.teams.map(r => ({
+        rank: (+r.rank || +r.Rank || +r.position || +r.Position || 0),
+        team: pickTeamName(r)
+      }));
     }
-
-    // {teams:[...] }
-    if (Array.isArray(data.teams)) {
-      return data.teams.map(r => ({ rank:+(r.rank||0), team:pickTeamName(r) }));
+    if (data && Array.isArray(data.ranks)) {
+      return data.ranks.map(r => ({
+        rank: (+r.rank || +r.Rank || +r.position || +r.Position || 0),
+        team: pickTeamName(r)
+      }));
     }
-
-    // CFBD /rankings shape: {polls:[{poll:'AP Top 25', ranks:[...]}, ...]}
-    if (Array.isArray(data.polls)) {
-      const wanted = data.polls.find(p =>
-        (poll === 'ap' ? /ap/i : /coach|usa\s*today/i).test(p.poll || p.name || '')
-      );
-      if (wanted) return fromAny(wanted);
-    }
-
-    // Blob wrapped under .data
-    if (Array.isArray(data.data)) return fromAny(data.data);
-
-    // {latest:{ranks:[...]}}
-    if (data.latest && Array.isArray(data.latest.ranks)) return fromAny(data.latest.ranks);
-
     return [];
   }
 
@@ -182,7 +135,7 @@
 
       const tm = document.createElement('span');
       tm.className = 'team';
-      tm.dataset.team = row.team;       // enables LSU special
+      tm.dataset.team = row.team;     // enables LSU special
       tm.textContent = row.team;
       tm.style.color = colorFor(row.team);
 
@@ -191,14 +144,30 @@
     });
   }
 
-  /* Fetch & show */
-  fetch(dataUrl + (dataUrl.includes('?') ? '&' : '?') + 'cb=' + Date.now(), {cache:'no-store'})
-    .then(r => r.json())
-    .then(json => {
-      const rows = fromAny(json)
-        .filter(x => x.rank > 0 && x.team)
-        .sort((a,b) => a.rank - b.rank);
+  async function resolveDataUrl(){
+    // if iframe explicitly passed a URL, honor it
+    const apUrlParam       = qp.get('apUrl');
+    const coachesUrlParam  = qp.get('coachesUrl');
+    if (apUrlParam || coachesUrlParam) {
+      return poll === 'ap' ? apUrlParam : coachesUrlParam;
+    }
+    // otherwise ask our API for the freshest blobs, with local fallback
+    try {
+      const resp = await fetch('/api/update', { cache:'no-store' });
+      const j = await resp.json();
+      return poll === 'ap' ? (j.apUrl || '/tcd-ap.json') : (j.coachesUrl || '/tcd-coaches.json');
+    } catch {
+      return poll === 'ap' ? '/tcd-ap.json' : '/tcd-coaches.json';
+    }
+  }
 
+  /* ---- fetch & render ---- */
+  resolveDataUrl()
+    .then(url => fetch(url, { cache:'no-store' }).then(r => r.json()))
+    .then(json => {
+      let rows = normalizeArray(json)
+        .filter(x => (x.rank > 0) && x.team)
+        .sort((a,b) => a.rank - b.rank);
       if (!rows.length) throw new Error('No rows');
       render(rows);
     })
