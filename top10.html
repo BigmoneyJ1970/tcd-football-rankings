@@ -1,8 +1,14 @@
-/* Base layout (kept here so you don't have to hunt) */
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TCD Football – Top 10</title>
+<style>
 :root{
-  --bar-h:32px;           /* height via ?h= */
-  --bg:#f5f7fa;           /* background via ?bg= */
-  --fg:#000;              /* text color via ?fg= */
+  --bar-h:32px;
+  --bg:#f5f7fa;
+  --fg:#000;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -23,27 +29,82 @@ body{
 }
 ol{
   display:flex;
-  gap:20px;
+  gap:28px;
   list-style:none;
   padding:0;
   margin:0;
   width:100%;
-  justify-content:space-between;
+  justify-content:center;
+  align-items:baseline;
 }
-li{display:flex;gap:.35em;align-items:baseline}
+li{display:flex; gap:.35em; align-items:baseline}
 .rk{opacity:.85}
 .team{font-weight:700}
 
 /* responsive text sizing based on bar height */
-.wrap{font-size:clamp(12px, calc((var(--bar-h) - 10px)), 22px)}
-.rk{font-size:.95em}
+.wrap{ font-size: clamp(12px, calc((var(--bar-h) - 10px)), 22px); }
+.rk{ font-size:.95em }
 
-/* --- LSU SPECIAL: purple text, gold outline on each letter --- */
-li[data-team="LSU"] .team{
-  color:#461D7C;                 /* LSU purple letters */
-  -webkit-text-stroke:1px #FDBB30;  /* gold edge (WebKit) */
-  text-shadow:                        /* gold edge fallback */
+/* LSU SPECIAL: purple letters with gold outline on each letter */
+[data-team="LSU"] .team{
+  color:#461D7C;
+  -webkit-text-stroke:1px #FDBB30; /* WebKit outline */
+  text-shadow:
     0 1px 0 #FDBB30, 0 -1px 0 #FDBB30,
-    1px 0 0 #FDBB30, -1px 0 0 #FDBB30;
-  letter-spacing:.03em;          /* tiny separation between letters */
+    1px 0 0 #FDBB30, -1px 0 0 #FDBB30; /* fallback edge */
+  letter-spacing:.03em;
 }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <ol id="list" aria-label="Top teams"></ol>
+</div>
+
+<script>
+(function(){
+  const q = new URLSearchParams(location.search);
+
+  // theme via query
+  const h  = +(q.get('h')  || 32);
+  const bg = '#' + (q.get('bg') || 'f5f7fa').replace(/^#/,'');
+  const fg = '#' + (q.get('fg') || '000000').replace(/^#/,'');
+  document.documentElement.style.setProperty('--bar-h', h + 'px');
+  document.documentElement.style.setProperty('--bg', bg);
+  document.documentElement.style.setProperty('--fg', fg);
+
+  // which poll
+  const poll = (q.get('poll') || 'ap').toLowerCase();
+
+  // data sources (URL params win; fallback to repo files)
+  const apUrl       = q.get('apUrl')       || '/tcd-ap.json';
+  const coachesUrl  = q.get('coachesUrl')  || '/tcd-coaches.json';
+  const src = poll === 'coaches' ? coachesUrl : apUrl;
+
+  // how many teams to show
+  const n = Math.max(1, Math.min(25, +q.get('n') || 10));
+
+  const ol = document.getElementById('list');
+
+  fetch(src, {cache: 'no-store'})
+    .then(r => r.json())
+    .then(json => {
+      const teams = Array.isArray(json?.teams) ? json.teams : [];
+      if (!teams.length) throw new Error('No teams in payload');
+
+      ol.innerHTML = '';
+      teams.slice(0, n).forEach(t => {
+        const li = document.createElement('li');
+        li.dataset.team = t.team;
+        li.innerHTML = `<span class="rk">${t.rk}.</span><span class="team">${t.team}</span>`;
+        ol.appendChild(li);
+      });
+    })
+    .catch(err => {
+      ol.textContent = 'Unable to load rankings.';
+      console.error('Top10 load error:', err);
+    });
+})();
+</script>
+</body>
+</html>
