@@ -44,6 +44,27 @@ ol{
   justify-content:space-between;
   gap:22px;                /* keep/interpolate as you like */
 }
+  /* enable horizontal swipe/scroll on tablets & phones */
+@media (max-width:1024px){
+  .wrap{
+    overflow-x:auto;
+    overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;
+    touch-action: pan-x;
+    overscroll-behavior-x: contain;
+    justify-content:flex-start;   /* <-- add here */
+  }
+
+  .wrap::-webkit-scrollbar{ display:none; }
+
+  ol{
+    width:max-content;
+    justify-content:flex-start;
+    gap:18px;
+    padding:0 10px;
+  }
+}
+
 
 
     /* rank + team chunk */
