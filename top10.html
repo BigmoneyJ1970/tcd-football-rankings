@@ -50,15 +50,21 @@
     .rk{opacity:.85}
     .team{font-weight:700}
 
-    /* -------- LSU special: purple text with gold outline on each letter -------- */
-    [data-team="LSU"]{
-      color:#3D2173;                     /* LSU purple fill */
-      -webkit-text-stroke:1px #FDBB30;   /* gold edge (WebKit) */
-      text-shadow:
-        0   1px 0 #FDBB30, 0  -1px 0 #FDBB30,
-        1px 0   0 #FDBB30, -1px 0   0 #FDBB30;   /* gold edge fallback */
-      letter-spacing:.03em;              /* tiny separation between letters */
-    }
+/* -------- LSU special: purple text with gold outline on each letter -------- */
+[data-team="LSU"]{
+  color:#3D2173;                       /* LSU purple fill */
+  -webkit-text-stroke:0.5px #FDBB30;   /* gold edge (half as thick) */
+
+  /* fallback “stroke” using shadows, also at half-pixel offsets */
+  text-shadow:
+    0     0.5px 0 #FDBB30,
+    0    -0.5px 0 #FDBB30,
+    0.5px 0     0 #FDBB30,
+   -0.5px 0     0 #FDBB30;
+
+  letter-spacing:.03em;                 /* keep your tiny separation */
+}
+
   </style>
 </head>
 
