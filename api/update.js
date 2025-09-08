@@ -40,6 +40,9 @@ function getLatestPollRanksFor(label, rankings) {
 
 /**
  * Build our JSON for the site (AP only).
+ * Adds a robust `rec` (record) field:
+ * - prefers r.record
+ * - falls back to "wins-losses[-ties]" if available
  */
 function buildApJson(rankings, colorMap) {
   const { meta, ranks } = getLatestPollRanksFor("AP", rankings);
@@ -48,10 +51,21 @@ function buildApJson(rankings, colorMap) {
   const teams = ranks.slice(0, 25).map((r) => {
     const key = norm(r.school);
     const color = colorMap.get(key) || null;
+
+    // robust record builder
+    let rec = r.record || "";
+    if (!rec) {
+      const parts = [];
+      if (typeof r.wins === "number") parts.push(String(r.wins));
+      if (typeof r.losses === "number") parts.push(String(r.losses));
+      if (typeof r.ties === "number" && r.ties > 0) parts.push(String(r.ties));
+      if (parts.length >= 2) rec = parts.join("-");
+    }
+
     return {
       rk: r.rank,
       team: r.school,
-      rec: r.record || "",
+      rec,
       conf: r.conference || "",
       color, // hex like "#cc0000" (may be null)
     };
