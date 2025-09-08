@@ -1,25 +1,32 @@
-// api/update.js — Node runtime, writes color-enriched JSON to Vercel Blob
-import { put } from "@vercel/blob";
-
-const CFBD_RANKINGS = "https://api.collegefootballdata.com/rankings";
-const CFBD_TEAMS_FBS = "https://api.collegefootballdata.com/teams/fbs";
-
 // ----- helpers -----
 const norm = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
-function buildJson(pollsArr, label, colorMap) {
-  if (!Array.isArray(pollsArr) || !pollsArr.length) return null;
-
-  // pick the latest poll object that matches the label ("AP" or "Coaches")
-  const latest = pollsArr.reduce((a, b) => (a.week || 0) > (b.week || 0) ? a : b);
-  const poll =
-    latest.polls?.find((p) =>
+/** Find the latest week in which the AP poll exists, then return its ranks */
+function getLatestPollRanksFor(label, rankings) {
+  // Gather all weekly snapshots that actually contain the requested poll
+  const candidates = (rankings || []).filter((wk) =>
+    Array.isArray(wk.polls) && wk.polls.some((p) =>
       label === "AP" ? /AP/i.test(p.poll) : /Coach/i.test(p.poll)
-    ) || null;
+    )
+  );
+  if (!candidates.length) return [];
 
-  if (!poll) return null;
+  // Pick the highest week among those candidates
+  const latest = candidates.reduce((a, b) => (a.week || 0) > (b.week || 0) ? a : b);
 
-  const teams = (poll.ranks || []).slice(0, 25).map((r) => {
+  // Return the ranks for that poll (should be 25)
+  const poll = latest.polls.find((p) => label === "AP" ? /AP/i.test(p.poll) : /Coach/i.test(p.poll));
+  return {
+    meta: { season: latest.season, week: latest.week },
+    ranks: Array.isArray(poll?.ranks) ? poll.ranks : []
+  };
+}
+
+function buildJson(rankings, label, colorMap) {
+  const { meta, ranks } = getLatestPollRanksFor(label, rankings);
+  if (!ranks.length) return null;
+
+  const teams = ranks.slice(0, 25).map((r) => {
     const key = norm(r.school);
     const color = colorMap.get(key) || null;
     return {
@@ -27,85 +34,15 @@ function buildJson(pollsArr, label, colorMap) {
       team: r.school,
       rec: r.record || "",
       conf: r.conference || "",
-      color, // <— NEW: hex like "#cc0000" (may be null if unknown)
+      color
     };
   });
 
   return {
     poll: label,
-    season: latest.season,
-    week: latest.week,
+    season: meta.season,
+    week: meta.week,
     lastUpdated: new Date().toISOString(),
-    teams,
+    teams
   };
-}
-
-export default async function handler(req, res) {
-  if (req.method !== "GET") {
-    return res.status(405).json({ ok: false, error: "Method not allowed" });
-  }
-
-  try {
-    const year = new Date().getFullYear();
-
-    // fetch rankings
-    const r = await fetch(`${CFBD_RANKINGS}?year=${year}`, {
-      headers: { Authorization: `Bearer ${process.env.CFBD_API_KEY}` },
-      cache: "no-store",
-    });
-    if (!r.ok) {
-      const body = await r.text();
-      return res
-        .status(500)
-        .json({ ok: false, error: "CFBD rankings fetch failed", status: r.status, body });
-    }
-    const rankings = await r.json();
-
-    // fetch team colors (FBS list)
-    const tr = await fetch(`${CFBD_TEAMS_FBS}?year=${year}`, {
-      headers: { Authorization: `Bearer ${process.env.CFBD_API_KEY}` },
-      cache: "no-store",
-    });
-    if (!tr.ok) {
-      const body = await tr.text();
-      return res
-        .status(500)
-        .json({ ok: false, error: "CFBD teams fetch failed", status: tr.status, body });
-    }
-    const teamsList = await tr.json();
-    const colorMap = new Map();
-    teamsList.forEach((t) => {
-      const key = norm(t.school);
-      // prefer primary color, fall back to alt
-      const color = t.color || t.alt_color || null;
-      if (key && color && !colorMap.has(key)) colorMap.set(key, color.startsWith("#") ? color : `#${color}`);
-    });
-
-    const apJson = buildJson(rankings, "AP", colorMap);
-    const coachesJson = buildJson(rankings, "Coaches", colorMap);
-    if (!apJson || !coachesJson)
-      return res.status(500).json({ ok: false, error: "Could not build poll JSON" });
-
-    // write to Blob Storage (public, stable filenames)
-    const [apPut, coachesPut] = await Promise.all([
-      put("tcd-ap.json", JSON.stringify(apJson), {
-        access: "public",
-        addRandomSuffix: false,
-        contentType: "application/json",
-      }),
-      put("tcd-coaches.json", JSON.stringify(coachesJson), {
-        access: "public",
-        addRandomSuffix: false,
-        contentType: "application/json",
-      }),
-    ]);
-
-    return res.json({
-      ok: true,
-      apUrl: apPut.url,
-      coachesUrl: coachesPut.url,
-    });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
 }
