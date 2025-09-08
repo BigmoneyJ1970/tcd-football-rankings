@@ -12,8 +12,6 @@
   ],
   "crons": [
     { "path": "/api/update", "schedule": "1 18 * * 0" },
-    { "path": "/api/update", "schedule": "1 19 * * 0" },
-    { "path": "/api/update", "schedule": "1 18 * * 1" },
-    { "path": "/api/update", "schedule": "1 19 * * 1" }
+    { "path": "/api/update", "schedule": "1 19 * * 0" }
   ]
 }
