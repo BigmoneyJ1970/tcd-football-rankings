@@ -11,9 +11,9 @@
     }
   ],
   "crons": [
-    { "path": "/api/update", "schedule": "1 18 * * 0" },  // Sun 18:01 UTC (2:01 pm EDT)
-    { "path": "/api/update", "schedule": "1 19 * * 0" },  // Sun 19:01 UTC (2:01 pm EST)
-    { "path": "/api/update", "schedule": "1 18 * * 1" },  // Mon 18:01 UTC (DST fallback)
-    { "path": "/api/update", "schedule": "1 19 * * 1" }   // Mon 19:01 UTC (standard time fallback)
+    { "path": "/api/update", "schedule": "1 18 * * 0" },
+    { "path": "/api/update", "schedule": "1 19 * * 0" },
+    { "path": "/api/update", "schedule": "1 18 * * 1" },
+    { "path": "/api/update", "schedule": "1 19 * * 1" }
   ]
 }
